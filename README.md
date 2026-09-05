@@ -50,6 +50,12 @@ built to make that survivable rather than to pretend it is a database. Three thi
   than `IDEA-12`, so a duplicate label does not happen either. The number is worked out from the
   ideas actually in front of you, so it stays right as other people's ideas arrive. Leave it blank
   and keys stay `IDEA-n`, which is the right choice if you are the only one editing.
+
+  Only ideas created *after* you set it are affected. Existing ideas keep the keys they have, so a
+  project you have been running on your own ends up with `IDEA-1` through `IDEA-40` followed by
+  `BL-1`, `JS-1` and so on. The key is what shows in the Ideas table, on board cards, on timeline
+  rows, in the matrix labels, in the idea panel, in link and merge pickers, and in CSV exports.
+  Sorting by the Key column groups each person's ideas together rather than interleaving them.
 - **The folder is re-read every 25 seconds** and when you switch back to the tab. New, changed and
   deleted ideas appear on their own, and a note in the corner says what arrived. Anything you have
   edited but not yet saved is never overwritten by the refresh.

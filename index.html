@@ -795,6 +795,12 @@ function setKeyPrefix(v){
   store.set(PREFIX_KEY,keyPrefix);
   return keyPrefix;
 }
+/* Keys sort by prefix first, then numerically inside it, so a shared folder groups
+   each person's ideas instead of interleaving BL-1, JS-1, BL-2. */
+function keySortVal(key){
+  const m=String(key||'').match(/^(.+)-(\d+)$/);
+  return m ? m[1]+'\u0000'+String(m[2]).padStart(9,'0') : String(key||'');
+}
 function nextKey(){
   const p=keyPrefix||'IDEA';
   let n=0;
@@ -1159,7 +1165,8 @@ function normalize(d){
   d.fiscalStart = Math.min(12,Math.max(1,Number(d.fiscalStart)||1));
   d.fiscalName = d.fiscalName==='start' ? 'start' : 'end';
   d.ideas.forEach(i=>{ i.custom=i.custom||{}; });
-  d.seq = Math.max(d.seq||0, ...d.ideas.map(i=>Number((i.key||'').split('-')[1])||0));
+  d.seq = Math.max(d.seq||0, ...d.ideas.map(i=>{
+    const m=String(i.key||'').match(/^IDEA-(\d+)$/); return m?Number(m[1]):0; }));
   return d;
 }
 
@@ -1432,7 +1439,7 @@ function visibleIdeas(){
 function customSortVal(i,id){ const f=fieldById(id); if(!f) return ''; const v=getVal(i,f); const numeric=['number','rating','formula'].includes(f.type); if(isEmpty(v)) return numeric?-Infinity:'\uffff'; if(f.type==='checkbox') return v?1:0; if(hasOpts(f)){ const first=Array.isArray(v)?v[0]:v; return f.options.findIndex(o=>o.id===first); } return numeric?Number(v):v; }
 function sorted(list){
   const k=ui.sort.key, d=ui.sort.dir;
-  const val = i => k==='score'?score(i):k==='insights'?insightWeight(i):k==='status'?statuses().findIndex(s=>s.id===i.status):k==='bucket'?buckets().findIndex(b=>b.id===(i.bucket||'none')):k==='rank'?i.rank:k==='key'?Number(i.key.split('-')[1]):k==='labels'?i.labels.join(','):(k==='start'||k==='end')?(i[k]||'\uffff'):k.startsWith('c:')?customSortVal(i,k.slice(2)):i[k];
+  const val = i => k==='score'?score(i):k==='insights'?insightWeight(i):k==='status'?statuses().findIndex(s=>s.id===i.status):k==='bucket'?buckets().findIndex(b=>b.id===(i.bucket||'none')):k==='rank'?i.rank:k==='key'?keySortVal(i.key):k==='labels'?i.labels.join(','):(k==='start'||k==='end')?(i[k]||'\uffff'):k.startsWith('c:')?customSortVal(i,k.slice(2)):i[k];
   return [...list].sort((a,b)=>{ const x=val(a), y=val(b); if(x==null&&y==null) return 0; if(typeof x==='number'&&typeof y==='number') return (x-y)*d; return String(x??'').localeCompare(String(y??''),undefined,{numeric:true,sensitivity:'base'})*d; });
 }
 function allLabels(){ return [...new Set(data.ideas.flatMap(i=>i.labels))].sort(); }
