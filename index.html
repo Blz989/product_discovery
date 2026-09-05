@@ -621,6 +621,19 @@ const DEFAULT_BUCKETS = [
 ];
 const statuses = () => data.statuses;
 const buckets  = () => data.buckets;
+/* A sandboxed iframe (a SharePoint embed, an artifact preview) makes even reading
+   window.localStorage throw, so every access goes through here and the app runs
+   from memory when storage is denied. */
+const store=(()=>{
+  let ls=null;
+  try{ ls=window.localStorage; const k='__dd_probe'; ls.setItem(k,'1'); ls.removeItem(k); }
+  catch(e){ ls=null; }
+  return {
+    available:!!ls,
+    get(k){ try{ return ls?ls.getItem(k):null; }catch(e){ return null; } },
+    set(k,v){ try{ if(!ls) return false; ls.setItem(k,v); return true; }catch(e){ return false; } }
+  };
+})();
 const LS_KEY = 'discovery-desk:data';
 const LS_THEME = 'discovery-desk:theme';
 const LS_VIEW = 'discovery-desk:view';
@@ -630,10 +643,10 @@ let data = null;
 /* Everything a saved view captures lives in `ui`. */
 const LS_UI='discovery-desk:ui';
 function defaultUi(){ return {view:'list',q:'',rules:[],sort:{key:'score',dir:-1},groupBy:'',boardBy:'status',hidden:['rank'],tlFy:'',showArchived:false,swimlane:'',cardFields:[],matrix:{x:'effort',y:'impact',size:'reach',color:'status'}}; }
-function loadUi(){ try{ const u=JSON.parse(localStorage.getItem(LS_UI)); if(u&&u.view) return Object.assign(defaultUi(),u); }catch(e){} return defaultUi(); }
+function loadUi(){ try{ const u=JSON.parse(store.get(LS_UI)); if(u&&u.view) return Object.assign(defaultUi(),u); }catch(e){} return defaultUi(); }
 let ui = loadUi();
-let activeViewId = localStorage.getItem('discovery-desk:activeView') || null;
-function saveUi(){ try{ localStorage.setItem(LS_UI,JSON.stringify(ui)); localStorage.setItem('discovery-desk:activeView',activeViewId||''); }catch(e){} }
+let activeViewId = store.get('discovery-desk:activeView') || null;
+function saveUi(){ store.set(LS_UI,JSON.stringify(ui)); store.set('discovery-desk:activeView',activeViewId||''); }
 let openId = null;
 let fileHandle = null;
 let fileState = 'none'; // none | ok | dirty | err | locked
@@ -734,12 +747,12 @@ function sampleData(){
 
 /* ---------- persistence ---------- */
 function loadLocal(){
-  try{ const raw=localStorage.getItem(LS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+  try{ const raw=store.get(LS_KEY); if(raw) return JSON.parse(raw); }catch(e){}
   return null;
 }
 function persist(){
   data.updated = now();
-  try{ localStorage.setItem(LS_KEY, JSON.stringify(data)); }catch(e){}
+  store.set(LS_KEY, JSON.stringify(data));
   if(fileHandle){ setFileState('dirty'); clearTimeout(saveTimer); saveTimer=setTimeout(writeFile, 700); }
   renderNavCounts();
 }
@@ -758,7 +771,8 @@ function setFileState(s, msg){
   fileState=s;
   const dot=$('#fileDot'), st=$('#fileState');
   dot.className='dot '+(s==='ok'?'ok':s==='dirty'?'dirty':s==='err'||s==='locked'?'err':'');
-  st.textContent = {none:'Browser storage only', ok:'Saved to file', dirty:'Saving…', err:'Save failed: '+(msg||''), locked:'Permission needed'}[s];
+  st.textContent = {none:store.available?'Browser storage only':'Not saved', ok:'Saved to file', dirty:'Saving…', err:'Save failed: '+(msg||''), locked:'Permission needed'}[s];
+  if(s==='none'&&!store.available) dot.className='dot err';
   $('#fileName').textContent = fileHandle ? fileHandle.name : 'No file connected';
   $('#btnReconnect').hidden = s!=='locked';
 }
@@ -767,7 +781,7 @@ const pickerOpts = {types:[{description:'Discovery Desk project',accept:{'applic
 
 /* Handle persistence via IndexedDB so the file reconnects after reload */
 const idb = {
-  open(){ return new Promise((res,rej)=>{ const r=indexedDB.open('discovery-desk',1); r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); },
+  open(){ return new Promise((res,rej)=>{ let r; try{ r=indexedDB.open('discovery-desk',1); }catch(e){ return rej(e); } r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); },
   async get(k){ const db=await this.open(); return new Promise((res,rej)=>{ const t=db.transaction('kv').objectStore('kv').get(k); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); }); },
   async set(k,v){ const db=await this.open(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite').objectStore('kv').put(v,k); t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); }); },
   async del(k){ const db=await this.open(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite').objectStore('kv').delete(k); t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); }); },
@@ -780,7 +794,7 @@ async function adoptHandle(h, {read}){
     const f = await h.getFile();
     const txt = await f.text();
     const parsed = txt.trim() ? JSON.parse(txt) : null;
-    if(parsed && Array.isArray(parsed.ideas)){ data = normalize(parsed); localStorage.setItem(LS_KEY, JSON.stringify(data)); }
+    if(parsed && Array.isArray(parsed.ideas)){ data = normalize(parsed); store.set(LS_KEY, JSON.stringify(data)); }
     else { await writeFile(); }
   } else { await writeFile(); }
   setFileState('ok');
@@ -1815,7 +1829,7 @@ function afterRailPick(){ if(isNarrow()) closeRail(); }
 /* ---------- theme ---------- */
 function applyTheme(t){
   if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',t);
-  localStorage.setItem(LS_THEME,t);
+  store.set(LS_THEME,t);
   $$('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.theme===t));
 }
 
@@ -1827,7 +1841,7 @@ function toast(msg){ let t=$('.toast'); if(!t){ t=document.createElement('div');
 function init(){
   data = normalize(loadLocal() || sampleData());
   $('#projectName').value=data.name;
-  applyTheme(localStorage.getItem(LS_THEME)||'auto');
+  applyTheme(store.get(LS_THEME)||'auto');
   $$('#themeSeg button').forEach(b=>b.onclick=()=>applyTheme(b.dataset.theme));
   $$('#nav button').forEach(b=>b.onclick=()=>{ activeViewId=null; ui.view=b.dataset.view; afterRailPick(); render(); });
   $('#btnMenu').onclick=()=>railOpen()?closeRail():openRail();
@@ -1901,7 +1915,9 @@ function init(){
   $('#btnImport').onclick=()=>$('#importInput').click();
   $('#importInput').addEventListener('change',e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; });
   $('#btnOpen').onclick=openFile; $('#btnSaveAs').onclick=saveAs; $('#btnReconnect').onclick=reconnect;
-  if(!hasFS){ $('#btnOpen').disabled=true; $('#btnSaveAs').disabled=true; $('#fsNote').textContent = window.self!==window.top ? 'File access is unavailable inside an embedded preview. Open index.html directly in Chrome or Edge to sync a project file.' : 'This browser cannot write files directly. Use Export and Import, or open in Chrome or Edge to sync a project file.'; }
+  if(!hasFS){ $('#btnOpen').disabled=true; $('#btnSaveAs').disabled=true; $('#fsNote').textContent = window.self!==window.top ? 'File access is unavailable inside an embedded page. Open index.html directly in Chrome or Edge to sync a project file.' : 'This browser cannot write files directly. Use Export and Import, or open in Chrome or Edge to sync a project file.'; }
+  if(!store.available){ $('#btnExport').disabled=true; $('#btnImport').disabled=true;
+    $('#fsNote').textContent='This page is embedded in a sandbox that blocks storage and downloads, so edits last only until you close the tab. Open index.html directly to keep your work.'; }
   document.addEventListener('keydown',e=>{
     const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
     if(e.key==='Escape'){ const open=['#mergeModal','#exportModal','#filtersModal','#columnsModal','#viewModal','#cardsModal','#axesModal','#tplModal'].find(m=>!$(m).hidden); if(open) $(open).hidden=true; else if(railOpen()) closeRail(); else if(!$('#fieldsModal').hidden) closeFields(); else if(!$('#newModal').hidden) hideNew(); else if(openId) closePanel(); else document.activeElement.blur(); }
