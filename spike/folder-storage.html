@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folder storage prototype</title>
+<style>
+:root{
+  --bg:#f4f6f9; --surface:#fff; --surface-2:#eceff4; --line:#d6dbe4; --line-strong:#b9c1cf;
+  --ink:#1b2130; --ink-2:#4a5468; --ink-3:#7a8497; --accent:#2d5fa6; --accent-soft:#e3ebf8;
+  --good:#2e8b57; --warn:#c98a1b; --crit:#c43d3d;
+  --good-soft:#e2f3e8; --warn-soft:#fbf0d9; --crit-soft:#f9e1e1;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --surface:#1a1f28; --surface-2:#232a35; --line:#2e3644; --line-strong:#3f4a5c;
+  --ink:#e6e9ef; --ink-2:#aeb6c5; --ink-3:#7d8798; --accent:#6d9be6; --accent-soft:#213554;
+  --good:#5cc48a; --warn:#e0a848; --crit:#e56b6b;
+  --good-soft:#1c3328; --warn-soft:#3a2f16; --crit-soft:#3d1f1f; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --surface:#1a1f28; --surface-2:#232a35; --line:#2e3644; --line-strong:#3f4a5c;
+  --ink:#e6e9ef; --ink-2:#aeb6c5; --ink-3:#7d8798; --accent:#6d9be6; --accent-soft:#213554;
+  --good:#5cc48a; --warn:#e0a848; --crit:#e56b6b;
+  --good-soft:#1c3328; --warn-soft:#3a2f16; --crit-soft:#3d1f1f; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+header{padding:14px 18px;border-bottom:1px solid var(--line);background:var(--surface)}
+h1{font-size:17px;margin:0 0 3px;letter-spacing:-.01em}
+.lede{color:var(--ink-2);font-size:13px;margin:0;max-width:80ch}
+.bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--line);background:var(--surface)}
+button{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:6px;padding:7px 12px;font:inherit;font-weight:500;cursor:pointer}
+button:hover:not(:disabled){background:var(--surface-2)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover:not(:disabled){filter:brightness(1.08)}
+button:disabled{opacity:.45;cursor:not-allowed}
+button.sm{padding:4px 8px;font-size:12px}
+.spacer{flex:1}
+.folder{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+main{flex:1;display:grid;grid-template-columns:290px 1fr 320px;min-height:0}
+.pane{overflow:auto;padding:12px}
+.pane+.pane{border-left:1px solid var(--line)}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin:0 0 8px}
+.idea{padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);margin-bottom:6px;cursor:pointer}
+.idea:hover{border-color:var(--line-strong)}
+.idea.on{border-color:var(--accent);background:var(--accent-soft)}
+.idea .k{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+.idea .t{font-weight:500}
+.idea .m{font-size:11px;color:var(--ink-3);font-family:var(--mono);margin-top:2px}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600}
+input,select{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:6px;padding:7px 9px;font:inherit;width:100%}
+.rt-tools{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px}
+.rt-tools button{padding:4px 8px;font-size:12px;min-width:30px}
+.rt{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:10px;min-height:200px;overflow:auto;line-height:1.6}
+.rt:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.rt img{max-width:100%;border-radius:4px;display:block;margin:8px 0}
+.rt h2,.rt h3{text-transform:none;letter-spacing:0;color:var(--ink);margin:10px 0 4px}
+.rt h2{font-size:17px} .rt h3{font-size:15px}
+.rt blockquote{margin:8px 0;padding-left:10px;border-left:3px solid var(--line-strong);color:var(--ink-2)}
+.rt code{font-family:var(--mono);font-size:13px;background:var(--surface-2);padding:1px 4px;border-radius:3px}
+.asset{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12px}
+.asset .n{flex:1;font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.asset img{width:40px;height:30px;object-fit:cover;border-radius:3px;border:1px solid var(--line)}
+.stat{display:flex;justify-content:space-between;gap:10px;padding:5px 0;border-bottom:1px solid var(--line);font-size:13px}
+.stat b{font-family:var(--mono);font-weight:500}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px}
+.verdict{border-radius:6px;padding:10px;font-size:13px;margin-top:8px}
+.verdict.good{background:var(--good-soft);color:var(--good)}
+.verdict.warn{background:var(--warn-soft);color:var(--warn)}
+.log{font-family:var(--mono);font-size:11px;color:var(--ink-3);max-height:150px;overflow:auto;white-space:pre-wrap}
+.empty{color:var(--ink-3);padding:20px 6px;text-align:center;font-size:13px}
+.note{font-size:12px;color:var(--ink-3);margin-top:6px}
+@media(max-width:1100px){main{grid-template-columns:1fr}.pane+.pane{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Folder storage prototype</h1>
+  <p class="lede">Stores each idea as its own JSON file and each image as a real binary file in a
+  folder you pick, instead of packing everything into one JSON document. Point it at a folder,
+  paste some screenshots into a description, then use <b>Compare with single file</b> to see what the
+  same content would cost as one document. Everything is measured on your machine with your data.</p>
+</header>
+
+<div class="bar">
+  <button class="primary" id="btnPick">Choose folder</button>
+  <button id="btnReconnect" hidden>Reconnect</button>
+  <button id="btnSeed" disabled>Add sample ideas</button>
+  <button id="btnImport" disabled>Import project JSON</button>
+  <input type="file" id="importFile" accept="application/json,.json" hidden>
+  <button id="btnExport" disabled>Export single JSON</button>
+  <button id="btnOrphans" disabled>Clean orphan assets</button>
+  <span class="spacer"></span>
+  <span class="folder" id="folderName">No folder connected</span>
+</div>
+
+<main>
+  <div class="pane">
+    <h2>Ideas <span id="ideaCount" class="folder"></span></h2>
+    <button class="sm" id="btnNew" disabled style="width:100%;margin-bottom:8px">+ New idea</button>
+    <div id="ideaList"><div class="empty">Choose a folder to begin.</div></div>
+  </div>
+
+  <div class="pane">
+    <div id="editor" hidden>
+      <div class="field"><label for="eTitle">Title</label><input id="eTitle"></div>
+      <div class="field" style="max-width:220px"><label for="eStatus">Status</label>
+        <select id="eStatus"><option>Parked</option><option>Discovery</option><option>Prioritized</option><option>In delivery</option><option>Shipped</option></select></div>
+      <div class="field">
+        <label>Description</label>
+        <div class="rt-tools">
+          <button data-cmd="bold" title="Bold"><b>B</b></button>
+          <button data-cmd="italic" title="Italic"><i>I</i></button>
+          <button data-cmd="formatBlock" data-arg="h2" title="Heading">H2</button>
+          <button data-cmd="formatBlock" data-arg="h3" title="Subheading">H3</button>
+          <button data-cmd="insertUnorderedList" title="Bullets">&bull;</button>
+          <button data-cmd="insertOrderedList" title="Numbered">1.</button>
+          <button data-cmd="formatBlock" data-arg="blockquote" title="Quote">&ldquo;</button>
+          <button id="btnLink" title="Link">Link</button>
+          <button id="btnImg" title="Insert an image">Image</button>
+          <input type="file" id="imgFile" accept="image/*" multiple hidden>
+        </div>
+        <div class="rt" id="eBody" contenteditable="true" spellcheck="true"></div>
+        <div class="note">Paste a screenshot straight in. Images are downscaled, re-encoded and written
+        as separate files in <code>assets/</code>, never as base64 inside the JSON.</div>
+      </div>
+      <div class="field">
+        <label>Assets on disk <span id="assetCount" class="folder"></span></label>
+        <div id="assetList"></div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="primary" id="btnSave">Save idea</button>
+        <button id="btnDelete">Delete</button>
+        <span class="folder" id="saveInfo"></span>
+      </div>
+    </div>
+    <div id="noEditor" class="empty">Select an idea, or create one.</div>
+  </div>
+
+  <div class="pane">
+    <h2>On disk</h2>
+    <div class="box" id="stats"><div class="empty">No folder yet.</div></div>
+    <h2>Single file, for comparison</h2>
+    <div class="box">
+      <button id="btnCompare" disabled style="width:100%">Compare with single file</button>
+      <div id="compare"></div>
+      <div class="note">Builds the equivalent monolithic document, base64 encoding every asset, and
+      times serializing and writing it once. That is what the current app does on every save.</div>
+    </div>
+    <h2>Log</h2>
+    <div class="box"><div class="log" id="log"></div></div>
+  </div>
+</main>
+
+<script>
+/* ============================================================
+   Folder storage prototype.
+
+   Layout written into the chosen directory:
+     project.json          name, key sequence
+     ideas/IDEA-3.json     one file per idea, description held as HTML
+     assets/IDEA-3/<id>.webp   images as real binaries, never base64
+
+   Images are referenced from the description HTML by
+   <img data-asset="<id>.webp">. Blob URLs are attached at render time and
+   stripped before writing, so no transient URL is ever persisted.
+   ============================================================ */
+const $=s=>document.querySelector(s);
+const fmtBytes=n=>n<1024?n+' B':n<1048576?(n/1024).toFixed(1)+' KB':(n/1048576).toFixed(2)+' MB';
+const uid=()=>Math.random().toString(36).slice(2,10);
+const now=()=>new Date().toISOString();
+let dir=null, project=null, ideas=[], current=null;
+const urlCache=new Map();
+
+function log(msg){ const el=$('#log'); el.textContent=(new Date().toLocaleTimeString()+'  '+msg+'\n')+el.textContent; }
+
+/* ---------- handle persistence, so the folder reconnects ---------- */
+const idb={
+  open(){ return new Promise((res,rej)=>{ let r; try{ r=indexedDB.open('folder-proto',1); }catch(e){ return rej(e); }
+    r.onupgradeneeded=()=>r.result.createObjectStore('kv'); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); },
+  async get(k){ const db=await this.open(); return new Promise((res,rej)=>{ const t=db.transaction('kv').objectStore('kv').get(k); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); }); },
+  async set(k,v){ const db=await this.open(); return new Promise((res,rej)=>{ const t=db.transaction('kv','readwrite').objectStore('kv').put(v,k); t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); }); }
+};
+
+/* ---------- primitive file operations ---------- */
+async function sub(path,create=false){
+  let d=dir;
+  for(const part of path.split('/').filter(Boolean)) d=await d.getDirectoryHandle(part,{create});
+  return d;
+}
+async function writeFile(path,contents){
+  const parts=path.split('/'); const name=parts.pop();
+  const d=await sub(parts.join('/'),true);
+  const fh=await d.getFileHandle(name,{create:true});
+  const w=await fh.createWritable(); await w.write(contents); await w.close();
+}
+async function readFile(path){
+  const parts=path.split('/'); const name=parts.pop();
+  const d=await sub(parts.join('/'));
+  return (await d.getFileHandle(name)).getFile();
+}
+const writeJson=(p,o)=>writeFile(p,JSON.stringify(o,null,2));
+async function readJson(p){ try{ return JSON.parse(await (await readFile(p)).text()); }catch(e){ return null; } }
+async function listDir(path){
+  const out=[];
+  try{ const d=await sub(path); for await (const [name,h] of d.entries()) out.push({name,h}); }catch(e){}
+  return out;
+}
+async function removePath(path,recursive=false){
+  const parts=path.split('/'); const name=parts.pop();
+  const d=await sub(parts.join('/'));
+  try{ await d.removeEntry(name,{recursive}); }catch(e){}
+}
+
+/* ---------- project ---------- */
+async function openFolder(handle){
+  dir=handle;
+  await idb.set('dir',handle).catch(()=>{});
+  project=await readJson('project.json');
+  if(!project){
+    project={version:1,name:handle.name,seq:0,created:now()};
+    await writeJson('project.json',project);
+    await sub('ideas',true); await sub('assets',true);
+    log('Initialised a new project in "'+handle.name+'"');
+  } else log('Opened existing project "'+project.name+'"');
+  $('#folderName').textContent=handle.name;
+  ['btnSeed','btnImport','btnExport','btnOrphans','btnNew','btnCompare'].forEach(id=>$('#'+id).disabled=false);
+  await loadIdeas();
+}
+async function loadIdeas(){
+  const t0=performance.now();
+  const files=(await listDir('ideas')).filter(f=>f.name.endsWith('.json'));
+  ideas=await Promise.all(files.map(async f=>{
+    const file=await f.h.getFile();
+    const o=JSON.parse(await file.text());
+    o._bytes=file.size; o._file=f.name;
+    return o;
+  }));
+  ideas.sort((a,b)=>(a.key||'').localeCompare(b.key||'',undefined,{numeric:true}));
+  const ms=performance.now()-t0;
+  log('Read '+ideas.length+' idea files in '+ms.toFixed(0)+' ms'+(ideas.length?' ('+(ms/ideas.length).toFixed(1)+' ms each)':''));
+  renderList(); await renderStats();
+}
+
+/* ---------- assets ---------- */
+async function assetsFor(key){ return (await listDir('assets/'+key)).filter(a=>a.name!=='.'); }
+async function assetUrl(key,name){
+  const k=key+'/'+name;
+  if(urlCache.has(k)) return urlCache.get(k);
+  try{
+    const f=await readFile('assets/'+key+'/'+name);
+    const u=URL.createObjectURL(f); urlCache.set(k,u); return u;
+  }catch(e){ return ''; }
+}
+/* Downscale and re-encode before writing. A 300 KB screenshot lands nearer 80 KB. */
+async function storeImage(key,blob){
+  const bmp=await createImageBitmap(blob);
+  const max=1600, scale=Math.min(1,max/Math.max(bmp.width,bmp.height));
+  const c=document.createElement('canvas');
+  c.width=Math.round(bmp.width*scale); c.height=Math.round(bmp.height*scale);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+  const out=await new Promise(r=>c.toBlob(r,'image/webp',0.85));
+  const name=uid()+'.webp';
+  await writeFile('assets/'+key+'/'+name,out);
+  log('Stored '+name+': '+fmtBytes(blob.size)+' in, '+fmtBytes(out.size)+' out ('+
+      Math.round(100-out.size/blob.size*100)+'% smaller, '+c.width+'x'+c.height+')');
+  return {name,size:out.size};
+}
+
+/* ---------- rich text ---------- */
+const ALLOWED=new Set(['P','BR','B','STRONG','I','EM','U','H2','H3','UL','OL','LI','A','BLOCKQUOTE','CODE','IMG','DIV','SPAN']);
+function sanitize(root){
+  [...root.querySelectorAll('*')].forEach(el=>{
+    if(!ALLOWED.has(el.tagName)){ el.replaceWith(...el.childNodes); return; }
+    [...el.attributes].forEach(a=>{
+      const ok=(el.tagName==='A'&&a.name==='href'&&!/^javascript:/i.test(a.value))
+            || (el.tagName==='IMG'&&(a.name==='data-asset'||a.name==='alt'));
+      if(!ok) el.removeAttribute(a.name);
+    });
+  });
+}
+/* Attach blob URLs for display. The stored HTML only ever carries data-asset. */
+async function hydrate(key,html){
+  const d=document.createElement('div'); d.innerHTML=html||''; sanitize(d);
+  for(const img of d.querySelectorAll('img[data-asset]')) img.src=await assetUrl(key,img.dataset.asset);
+  return d.innerHTML;
+}
+function dehydrate(node){
+  const d=document.createElement('div'); d.innerHTML=node.innerHTML; sanitize(d);
+  d.querySelectorAll('img').forEach(img=>{ if(img.dataset.asset) img.removeAttribute('src'); else img.remove(); });
+  return d.innerHTML;
+}
+
+/* ---------- idea CRUD, one file per idea ---------- */
+async function newIdea(){
+  project.seq=(project.seq||0)+1;
+  const i={id:uid(),key:'IDEA-'+project.seq,title:'Untitled idea',status:'Discovery',description:'',created:now(),updated:now()};
+  await writeJson('project.json',project);
+  await saveIdea(i,true);
+  await loadIdeas(); select(i.key);
+}
+async function saveIdea(i,quiet){
+  i.updated=now();
+  const t0=performance.now();
+  await writeJson('ideas/'+i.key+'.json',stripInternals(i));
+  const ms=performance.now()-t0;
+  if(!quiet){ $('#saveInfo').textContent='wrote '+i.key+'.json in '+ms.toFixed(1)+' ms'; log('Saved '+i.key+' in '+ms.toFixed(1)+' ms'); }
+  return ms;
+}
+const stripInternals=i=>{ const o={...i}; delete o._bytes; delete o._file; return o; };
+async function deleteIdea(key){
+  if(!confirm('Delete '+key+' and its assets?')) return;
+  await removePath('ideas/'+key+'.json');
+  await removePath('assets/'+key,true);
+  log('Deleted '+key+' and its asset folder');
+  current=null; $('#editor').hidden=true; $('#noEditor').hidden=false;
+  await loadIdeas();
+}
+
+/* ---------- rendering ---------- */
+function renderList(){
+  const el=$('#ideaList');
+  $('#ideaCount').textContent=ideas.length?'('+ideas.length+')':'';
+  if(!ideas.length){ el.innerHTML='<div class="empty">No ideas yet.</div>'; return; }
+  el.innerHTML=ideas.map(i=>'<div class="idea'+(current&&i.key===current.key?' on':'')+'" data-k="'+i.key+'">'+
+    '<div class="k">'+i.key+'</div><div class="t">'+escapeHtml(i.title)+'</div>'+
+    '<div class="m">'+fmtBytes(i._bytes||0)+' · '+(i.status||'')+'</div></div>').join('');
+  el.querySelectorAll('.idea').forEach(d=>d.onclick=()=>select(d.dataset.k));
+}
+const escapeHtml=s=>String(s||'').replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+async function select(key){
+  current=ideas.find(i=>i.key===key); if(!current) return;
+  $('#editor').hidden=false; $('#noEditor').hidden=true;
+  $('#eTitle').value=current.title||'';
+  $('#eStatus').value=current.status||'Discovery';
+  $('#eBody').innerHTML=await hydrate(current.key,current.description);
+  $('#saveInfo').textContent='';
+  renderList(); await renderAssets();
+}
+async function renderAssets(){
+  if(!current) return;
+  const list=await assetsFor(current.key);
+  $('#assetCount').textContent=list.length?'('+list.length+')':'';
+  const el=$('#assetList');
+  if(!list.length){ el.innerHTML='<div class="note">None yet.</div>'; return; }
+  el.innerHTML='';
+  for(const a of list){
+    const f=await a.h.getFile();
+    const row=document.createElement('div'); row.className='asset';
+    row.innerHTML='<img src="'+(await assetUrl(current.key,a.name))+'" alt=""><span class="n">'+a.name+'</span><span>'+fmtBytes(f.size)+'</span>';
+    el.appendChild(row);
+  }
+}
+async function renderStats(){
+  const ideaFiles=(await listDir('ideas')).filter(f=>f.name.endsWith('.json'));
+  let ideaBytes=0; for(const f of ideaFiles) ideaBytes+=(await f.h.getFile()).size;
+  let assetBytes=0, assetCount=0;
+  for(const d of await listDir('assets')){
+    if(d.h.kind!=='directory') continue;
+    for(const a of await listDir('assets/'+d.name)){ assetBytes+=(await a.h.getFile()).size; assetCount++; }
+  }
+  $('#stats').innerHTML=
+    row('Idea files',ideaFiles.length)+row('Idea JSON total',fmtBytes(ideaBytes))+
+    row('Asset files',assetCount)+row('Asset total',fmtBytes(assetBytes))+
+    row('Everything',fmtBytes(ideaBytes+assetBytes))+
+    row('Rewritten per save',fmtBytes(ideas.length?Math.round(ideaBytes/ideas.length):0)+' (one file)');
+  window.__stats={ideaBytes,assetBytes,assetCount,ideaFiles:ideaFiles.length};
+}
+const row=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
+
+/* ---------- the comparison that answers the question ---------- */
+async function compare(){
+  $('#compare').innerHTML='<div class="note">Building…</div>';
+  const t0=performance.now();
+  const doc={version:1,name:project.name,seq:project.seq,ideas:[]};
+  for(const i of ideas){
+    const copy=stripInternals(i); copy.assets={};
+    for(const a of await assetsFor(i.key)){
+      const f=await a.h.getFile();
+      const buf=new Uint8Array(await f.arrayBuffer());
+      let bin=''; for(let k=0;k<buf.length;k++) bin+=String.fromCharCode(buf[k]);
+      copy.assets[a.name]='data:image/webp;base64,'+btoa(bin);
+    }
+    doc.ideas.push(copy);
+  }
+  const json=JSON.stringify(doc);
+  const buildMs=performance.now()-t0;
+  const t1=performance.now();
+  await writeFile('comparison-single-file.json',json);
+  const writeMs=performance.now()-t1;
+
+  const perIdeaMs=await saveIdea(ideas[0]||{key:'IDEA-0',title:'x'},true);
+  const s=window.__stats||{ideaBytes:0,assetBytes:0};
+  const onDisk=s.ideaBytes+s.assetBytes;
+  const factor=onDisk?(json.length/onDisk):1;
+  const slower=perIdeaMs?((buildMs+writeMs)/perIdeaMs):0;
+
+  $('#compare').innerHTML=
+    row('Single-file size',fmtBytes(json.length))+
+    row('Folder size',fmtBytes(onDisk))+
+    row('Inflation',factor.toFixed(2)+'x')+
+    row('Serialize + write once',(buildMs+writeMs).toFixed(0)+' ms')+
+    row('Save one idea file',perIdeaMs.toFixed(1)+' ms')+
+    '<div class="verdict '+(slower>3?'good':'warn')+'">'+
+      (slower>3
+        ? 'Every keystroke in the single-file model costs about '+slower.toFixed(0)+'x what one idea file costs, and grows with the whole corpus rather than the thing you edited.'
+        : 'At this size the two are close. Add a few screenshots and run it again; the gap opens up with assets, not with idea count.')+
+    '</div>'+
+    '<div class="note">A file named comparison-single-file.json was written into the folder so you can inspect it. Delete it when done.</div>';
+  log('Comparison: single file '+fmtBytes(json.length)+' vs folder '+fmtBytes(onDisk)+' ('+factor.toFixed(2)+'x)');
+}
+
+/* ---------- seed, import, export, orphans ---------- */
+const SAMPLE=[
+  ['Automate month-end accrual journal uploads','Prioritized','<p>Accountants build accrual journals in Excel and upload them by hand.</p><h3>What we would build</h3><ul><li>Generate the journal from the accrual register</li><li>Post through the ERP API</li></ul>'],
+  ['Self-service GL account mapping','Discovery','<p>FP&amp;A waits on Finance Tech to add mappings. A guarded form with validation removes the queue.</p>'],
+  ['Intercompany reconciliation dashboard','Discovery','<p>Show unmatched intercompany balances by entity pair <b>before</b> close starts.</p>'],
+  ['Replace SFTP bank statement pull with API feed','In delivery','<p>The SFTP job failed six times last quarter, each needing a manual rerun.</p><blockquote>Treasury: it always fails on a Friday.</blockquote>']
+];
+async function seed(){
+  for(const [title,status,description] of SAMPLE){
+    project.seq=(project.seq||0)+1;
+    await saveIdea({id:uid(),key:'IDEA-'+project.seq,title,status,description,created:now(),updated:now()},true);
+  }
+  await writeJson('project.json',project);
+  log('Added '+SAMPLE.length+' sample ideas');
+  await loadIdeas();
+}
+async function importProject(file){
+  const doc=JSON.parse(await file.text());
+  if(!Array.isArray(doc.ideas)) { alert('That file has no ideas array.'); return; }
+  let n=0;
+  for(const i of doc.ideas){
+    project.seq=(project.seq||0)+1;
+    const key=i.key||('IDEA-'+project.seq);
+    const desc=typeof i.description==='string'&&/</.test(i.description)
+      ? i.description
+      : '<p>'+escapeHtml(i.description||'').replace(/\n{2,}/g,'</p><p>').replace(/\n/g,'<br>')+'</p>';
+    await saveIdea({...i,key,description:desc},true);
+    n++;
+  }
+  await writeJson('project.json',project);
+  log('Imported '+n+' ideas, one file each');
+  await loadIdeas();
+}
+async function exportSingle(){
+  const doc={version:1,name:project.name,seq:project.seq,exported:now(),ideas:ideas.map(stripInternals)};
+  const blob=new Blob([JSON.stringify(doc,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=(project.name||'project').replace(/[^\w.-]+/g,'-').toLowerCase()+'.json'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  log('Exported '+ideas.length+' ideas as one JSON (text only; assets stay on disk)');
+}
+/* Assets whose idea no longer references them. Write the asset first, clean up later. */
+async function cleanOrphans(){
+  let removed=0;
+  for(const d of await listDir('assets')){
+    if(d.h.kind!=='directory') continue;
+    const idea=ideas.find(i=>i.key===d.name);
+    if(!idea){ await removePath('assets/'+d.name,true); removed++; continue; }
+    const used=new Set([...String(idea.description||'').matchAll(/data-asset="([^"]+)"/g)].map(m=>m[1]));
+    for(const a of await listDir('assets/'+d.name))
+      if(!used.has(a.name)){ await removePath('assets/'+d.name+'/'+a.name); removed++; }
+  }
+  log(removed?('Removed '+removed+' unreferenced asset'+(removed===1?'':'s')):'No orphans found');
+  await renderStats();
+}
+
+/* ---------- wiring ---------- */
+async function insertImages(files){
+  if(!current) return;
+  for(const f of files){
+    if(!/^image\//.test(f.type)) continue;
+    const {name}=await storeImage(current.key,f);
+    const img=document.createElement('img');
+    img.dataset.asset=name; img.src=await assetUrl(current.key,name);
+    $('#eBody').appendChild(img);
+  }
+  current.description=dehydrate($('#eBody'));
+  await saveIdea(current);
+  await renderAssets(); await renderStats(); await loadIdeas();
+}
+
+(function(){
+  if(!window.showDirectoryPicker){
+    $('#btnPick').disabled=true;
+    $('#folderName').textContent='This browser has no directory picker. Use Chrome or Edge.';
+  }
+  $('#btnPick').onclick=async()=>{ try{ await openFolder(await window.showDirectoryPicker({mode:'readwrite'})); }catch(e){ if(e.name!=='AbortError') log('Could not open: '+e.message); } };
+  $('#btnReconnect').onclick=async()=>{ const h=await idb.get('dir'); if(h&&await h.requestPermission({mode:'readwrite'})==='granted') await openFolder(h); };
+  $('#btnNew').onclick=newIdea;
+  $('#btnSeed').onclick=seed;
+  $('#btnImport').onclick=()=>$('#importFile').click();
+  $('#importFile').onchange=e=>{ if(e.target.files[0]) importProject(e.target.files[0]); e.target.value=''; };
+  $('#btnExport').onclick=exportSingle;
+  $('#btnOrphans').onclick=cleanOrphans;
+  $('#btnCompare').onclick=compare;
+  $('#btnSave').onclick=async()=>{
+    if(!current) return;
+    current.title=$('#eTitle').value.trim()||'Untitled idea';
+    current.status=$('#eStatus').value;
+    current.description=dehydrate($('#eBody'));
+    await saveIdea(current); await loadIdeas(); await select(current.key);
+  };
+  $('#btnDelete').onclick=()=>current&&deleteIdea(current.key);
+  document.querySelectorAll('.rt-tools [data-cmd]').forEach(b=>b.onclick=()=>{
+    $('#eBody').focus(); document.execCommand(b.dataset.cmd,false,b.dataset.arg||null);
+  });
+  $('#btnLink').onclick=()=>{ const u=prompt('Link URL','https://'); if(u&&!/^javascript:/i.test(u)){ $('#eBody').focus(); document.execCommand('createLink',false,u); } };
+  $('#btnImg').onclick=()=>$('#imgFile').click();
+  $('#imgFile').onchange=e=>{ insertImages([...e.target.files]); e.target.value=''; };
+  $('#eBody').addEventListener('paste',e=>{
+    const imgs=[...(e.clipboardData?.items||[])].filter(i=>i.type.startsWith('image/')).map(i=>i.getAsFile()).filter(Boolean);
+    if(imgs.length){ e.preventDefault(); insertImages(imgs); }
+  });
+  idb.get('dir').then(h=>{ if(h){ $('#btnReconnect').hidden=false; $('#folderName').textContent='Last used: '+h.name; } }).catch(()=>{});
+  log('Ready. Choose a folder to start.');
+})();
+</script>
+</body>
+</html>
