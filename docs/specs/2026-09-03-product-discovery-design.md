@@ -32,6 +32,28 @@ Everything lives in one file with four layers:
   costs one small file rather than the entire corpus. A `commit()` with no hint still marks
   everything dirty, which keeps the rarely-hit paths (import, manual reordering) correct at the cost
   of a full write. Deletes are explicit, since an absent idea cannot be inferred from a rewrite.
+  Idea files are named by the idea's internal id rather than its key, and views and fields are one
+  file per item, so no two concurrent writers can be routed to the same path by anything a user
+  controls. Every write is compared against what was last written to that path and skipped when
+  identical, which is what makes per-item config files cheap: a config flush touches only the item
+  that actually changed. `project.json` deliberately carries no timestamp so it is not rewritten on
+  every save and does not become a contention point; the display order of views and fields lives
+  there, since order is a project-level fact and not a property of any one item.
+- **Idea keys.** The key prefix is per person and lives in browser storage, not the project file, so
+  two people sharing a folder mint `BL-12` and `JS-12` rather than both minting `IDEA-12` from their
+  own stale copy of a shared counter. The number is derived from the keys present in `data` at
+  creation time rather than from a counter, so it stays correct as other people's ideas arrive.
+  `data.seq` is retained for the unprefixed case and for files written by earlier versions.
+- **Folder refresh.** Folder mode polls the directory every 25 seconds, and on tab focus. The
+  `lastModified` of every file read or written is recorded, so only files somebody else touched are
+  parsed; an entity in the pending set is skipped so an unflushed local edit is never overwritten,
+  and a poll is suppressed entirely while a write is in flight. Deletions are inferred from files
+  that have disappeared. This is the only mechanism by which one tab learns about another; there is
+  no conditional write in the File System Access API, so the design avoids collisions rather than
+  detecting them, and simultaneous edits to one idea remain last-write-wins.
+- **Folder migration.** Opening a folder written by an earlier version rewrites idea files from
+  key-named to id-named and splits the single `views.json` and `fields.json` into per-item files,
+  removing the originals, in one pass at adopt time.
 - **Persistence.** Every change writes to `localStorage` immediately. When a file handle is connected, a debounced write goes to the file 700 ms later. The handle is stored in IndexedDB so the file reconnects after reload; the browser may require one click to re-grant permission. Export and import cover browsers without file access.
 - **Views.** `render()` applies filters and sort, then dispatches to list, board, matrix, timeline, or bucket renderers. Board and buckets share one column renderer with HTML5 drag and drop.
 - **Timeline.** The window is one fiscal year, chosen by `ui.tlFy` (empty means the current year and follows the calendar; a year number pins it; `all` restores the old auto range). Bars overlapping the window are clipped to it and marked, so a long-running idea shows where it crosses the boundary instead of being dropped or overflowing; ideas entirely outside are listed separately. There is one scale: the renderer measures the real scroll pane (inserted empty first, so its `clientWidth` already accounts for content padding and its own borders) and derives pixels per day so the window fits exactly with no horizontal scroll, with a floor that lets a very long "All dates" range scroll instead of becoming unreadable. A resize re-renders so the fitted scale stays correct. The today marker is positioned with `calc(var(--tl-side) + Npx)` rather than a JavaScript-measured offset, so it cannot drift from the label column when the layout reflows between rendering and printing; the phone layout is scoped to `screen` so paper never picks it up. Pointer events move a bar or resize either edge; the change commits as a history entry on release. A click without movement opens the idea.

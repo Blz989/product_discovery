@@ -396,6 +396,10 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
         <select id="fyStart" class="small" aria-label="Fiscal year start month" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 4px"></select>
         <select id="fyName" class="small" aria-label="Fiscal year naming" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 4px"><option value="end">FY = end year</option><option value="start">FY = start year</option></select>
       </div>
+      <div class="btn-row" style="align-items:center;gap:6px;padding:0 6px">
+        <span class="small muted">Your initials</span>
+        <input id="userPrefix" class="small" maxlength="4" placeholder="IDEA" aria-label="Your initials, used to prefix the keys of ideas you create" title="Shared folder? Give each person different initials so nobody mints the same idea key." style="width:64px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:3px 6px;text-transform:uppercase">
+      </div>
       <nav class="nav" id="nav">
         <button data-view="list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>Ideas<span class="count" data-count="list"></span></button>
         <button data-view="board"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="2" y="2" width="3.5" height="12" rx="1"/><rect x="6.25" y="2" width="3.5" height="8" rx="1"/><rect x="10.5" y="2" width="3.5" height="10" rx="1"/></svg>Board</button>
@@ -760,10 +764,13 @@ function loadLocal(){
 let mode='browser', dirHandle=null;
 const pending={ideas:new Set(), config:false, removed:new Set()};
 
+/* Ideas are tracked by their uid, not their key. Two people working in the same
+   folder can mint the same key from a stale counter; ids never collide, so a
+   collision costs a duplicate label rather than somebody's idea. */
 function markPending(change){
-  if(!change){ data.ideas.forEach(i=>pending.ideas.add(i.key)); pending.config=true; return; }
-  if(change.idea) pending.ideas.add(change.idea.key);
-  if(change.ideas) change.ideas.forEach(i=>i&&pending.ideas.add(i.key));
+  if(!change){ data.ideas.forEach(i=>pending.ideas.add(i.id)); pending.config=true; return; }
+  if(change.idea) pending.ideas.add(change.idea.id);
+  if(change.ideas) change.ideas.forEach(i=>i&&pending.ideas.add(i.id));
   if(change.removed) pending.removed.add(change.removed);
   if(change.config) pending.config=true;
 }
@@ -776,7 +783,33 @@ function persist(change){
 }
 function commit(change){ persist(change); render(); if(openId) renderPanel(); }
 
+/* ---------- idea keys ---------- */
+/* The key prefix is per person and lives in browser storage, not the project file,
+   so two people sharing a folder mint BL-12 and JS-12 rather than both minting
+   IDEA-12. The number is derived from the ideas actually present, so it stays
+   correct as other people's ideas arrive. */
+const PREFIX_KEY='dd_prefix';
+let keyPrefix=(store.get(PREFIX_KEY)||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
+function setKeyPrefix(v){
+  keyPrefix=String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
+  store.set(PREFIX_KEY,keyPrefix);
+  return keyPrefix;
+}
+function nextKey(){
+  const p=keyPrefix||'IDEA';
+  let n=0;
+  data.ideas.forEach(i=>{ const m=String(i.key||'').match(/^(.+)-(\d+)$/); if(m&&m[1]===p) n=Math.max(n,Number(m[2])); });
+  if(p==='IDEA'){ n=Math.max(n,Number(data.seq)||0); data.seq=n+1; }
+  return p+'-'+(n+1);
+}
+
 /* ---------- folder backend ---------- */
+/* folderStamps holds the lastModified of every file we have read or written, so the
+   poller can tell somebody else's write from our own. writtenCache holds what we
+   last wrote to each path, so an unchanged entity is not rewritten and two people
+   editing different views never touch the same file. */
+const folderStamps=new Map(), writtenCache=new Map();
+
 async function dirSub(path,create=false){
   let d=dirHandle;
   for(const part of String(path).split('/').filter(Boolean)) d=await d.getDirectoryHandle(part,{create});
@@ -787,13 +820,22 @@ async function dirWrite(path,contents){
   const d=await dirSub(parts.join('/'),true);
   const fh=await d.getFileHandle(name,{create:true});
   const w=await fh.createWritable(); await w.write(contents); await w.close();
+  try{ folderStamps.set(path,(await fh.getFile()).lastModified); }catch(e){}
 }
-const dirWriteJson=(p,o)=>dirWrite(p,JSON.stringify(o,null,2));
+/* Returns true when it actually wrote. */
+async function dirWriteJson(path,o){
+  const s=JSON.stringify(o,null,2);
+  if(writtenCache.get(path)===s) return false;
+  await dirWrite(path,s); writtenCache.set(path,s); return true;
+}
 async function dirReadJson(path){
   try{
     const parts=path.split('/'); const name=parts.pop();
     const d=await dirSub(parts.join('/'));
-    return JSON.parse(await (await d.getFileHandle(name)).getFile().then(f=>f.text()));
+    const f=await (await d.getFileHandle(name)).getFile();
+    const o=JSON.parse(await f.text());
+    folderStamps.set(path,f.lastModified); writtenCache.set(path,JSON.stringify(o,null,2));
+    return o;
   }catch(e){ return null; }
 }
 async function dirList(path){
@@ -806,17 +848,37 @@ async function dirRemove(path,recursive){
     const parts=path.split('/'); const name=parts.pop();
     (await dirSub(parts.join('/'))).removeEntry(name,{recursive:!!recursive});
   }catch(e){}
+  folderStamps.delete(path); writtenCache.delete(path);
 }
+const ideaPath=i=>'ideas/'+i.id+'.json';
+/* project.json carries no timestamp, so it is only rewritten when a setting really
+   changes and does not become the file everybody contends over. */
 const projectMeta=()=>({version:data.version||1,name:data.name,seq:data.seq,
-  fiscalStart:data.fiscalStart,fiscalName:data.fiscalName,fieldNames:data.fieldNames,updated:data.updated});
-const CONFIG_PARTS=[['fields',()=>data.fields],['statuses',()=>data.statuses],['buckets',()=>data.buckets],
-                    ['views',()=>data.views],['templates',()=>data.templates]];
+  fiscalStart:data.fiscalStart,fiscalName:data.fiscalName,fieldNames:data.fieldNames,
+  viewOrder:(data.views||[]).map(v=>v.id), fieldOrder:(data.fields||[]).map(f=>f.id)});
+/* Small lists stay one file each. Views and fields get a file per item so two people
+   adding different ones do not overwrite each other. */
+const CONFIG_SINGLES=[['statuses',()=>data.statuses],['buckets',()=>data.buckets],['templates',()=>data.templates]];
+const CONFIG_COLLS=[['views',()=>data.views],['fields',()=>data.fields]];
 
+async function writeConfig(){
+  let n=0;
+  if(await dirWriteJson('project.json',projectMeta())) n++;
+  for(const [name,get] of CONFIG_SINGLES) if(await dirWriteJson('config/'+name+'.json',get())) n++;
+  for(const [name,get] of CONFIG_COLLS){
+    const list=get()||[];
+    await dirSub('config/'+name,true);
+    for(const o of list) if(o&&o.id&&await dirWriteJson('config/'+name+'/'+o.id+'.json',o)) n++;
+    const keep=new Set(list.filter(o=>o&&o.id).map(o=>o.id+'.json'));
+    for(const f of await dirList('config/'+name))
+      if(f.name.endsWith('.json')&&!keep.has(f.name)){ await dirRemove('config/'+name+'/'+f.name); n++; }
+  }
+  return n;
+}
 async function writeFolderAll(){
   await dirSub('ideas',true); await dirSub('assets',true); await dirSub('config',true);
-  await dirWriteJson('project.json',projectMeta());
-  for(const [name,get] of CONFIG_PARTS) await dirWriteJson('config/'+name+'.json',get());
-  for(const i of data.ideas) await dirWriteJson('ideas/'+i.key+'.json',i);
+  await writeConfig();
+  for(const i of data.ideas) await dirWriteJson(ideaPath(i),i);
 }
 /* Write only the entities that changed since the last flush. */
 async function flushFolder(){
@@ -825,31 +887,64 @@ async function flushFolder(){
   pending.ideas.clear(); pending.removed.clear(); pending.config=false;
   try{
     const t0=performance.now();
-    for(const key of removed){ await dirRemove('ideas/'+key+'.json'); await dirRemove('assets/'+key,true); }
-    for(const key of ideas){
-      const i=data.ideas.find(x=>x.key===key);
-      if(i) await dirWriteJson('ideas/'+i.key+'.json',i);
+    let n=0;
+    for(const id of removed){ await dirRemove('ideas/'+id+'.json'); await dirRemove('assets/'+id,true); n++; }
+    for(const id of ideas){
+      const i=data.ideas.find(x=>x.id===id);
+      if(i&&await dirWriteJson(ideaPath(i),i)) n++;
     }
-    if(cfg){
-      await dirWriteJson('project.json',projectMeta());
-      for(const [name,get] of CONFIG_PARTS) await dirWriteJson('config/'+name+'.json',get());
-    }
-    lastWrite={files:ideas.length+removed.length+(cfg?CONFIG_PARTS.length+1:0), ms:performance.now()-t0};
+    if(cfg) n+=await writeConfig();
+    lastWrite={files:n, ms:performance.now()-t0};
     setFileState('ok');
   }catch(e){ console.error(e); setFileState('err',e.message); }
 }
-let lastWrite=null;
+let lastWrite=null, folderLegacy=[];
 
+async function readFolderConfig(proj){
+  const cfg={};
+  for(const [name] of CONFIG_SINGLES) cfg[name]=await dirReadJson('config/'+name+'.json');
+  for(const [name] of CONFIG_COLLS){
+    const files=(await dirList('config/'+name)).filter(f=>f.name.endsWith('.json'));
+    if(files.length){
+      const list=[];
+      for(const f of files){
+        const file=await f.h.getFile();
+        try{ const o=JSON.parse(await file.text()); list.push(o);
+             folderStamps.set('config/'+name+'/'+f.name,file.lastModified);
+             writtenCache.set('config/'+name+'/'+f.name,JSON.stringify(o,null,2)); }catch(e){}
+      }
+      const order=(proj&&proj[name==='views'?'viewOrder':'fieldOrder'])||[];
+      list.sort((a,b)=>{ const x=order.indexOf(a.id), y=order.indexOf(b.id);
+                         return (x<0?1e9:x)-(y<0?1e9:y); });
+      cfg[name]=list;
+    } else {
+      /* A folder written before the split keeps its single file; adoptFolder migrates it. */
+      cfg[name]=await dirReadJson('config/'+name+'.json');
+      if(cfg[name]) folderLegacy.push('config/'+name+'.json');
+    }
+  }
+  return cfg;
+}
 async function loadFolder(h){
   const prev=dirHandle; dirHandle=h;
   try{
+    folderStamps.clear(); writtenCache.clear(); folderLegacy=[];
     const proj=await dirReadJson('project.json');
     if(!proj) return null;
-    const cfg={};
-    for(const [name] of CONFIG_PARTS) cfg[name]=await dirReadJson('config/'+name+'.json');
+    const cfg=await readFolderConfig(proj);
     const files=(await dirList('ideas')).filter(f=>f.name.endsWith('.json'));
     const t0=performance.now();
-    const ideas=await Promise.all(files.map(async f=>JSON.parse(await (await f.h.getFile()).text())));
+    const ideas=[];
+    for(const f of files){
+      const file=await f.h.getFile();
+      let o; try{ o=JSON.parse(await file.text()); }catch(e){ continue; }
+      if(!o||!o.id) continue;
+      ideas.push(o);
+      folderStamps.set('ideas/'+f.name,file.lastModified);
+      writtenCache.set('ideas/'+f.name,JSON.stringify(o,null,2));
+      /* Named by key by an earlier version: the name has to become the id. */
+      if(f.name!==o.id+'.json') folderLegacy.push('ideas/'+f.name);
+    }
     const ms=performance.now()-t0;
     const d=Object.assign({},proj,{ideas,
       fields:cfg.fields||[], statuses:cfg.statuses||null, buckets:cfg.buckets||null,
@@ -858,24 +953,120 @@ async function loadFolder(h){
     return normalize(d);
   }catch(e){ dirHandle=prev; throw e; }
 }
+async function migrateFolder(){
+  if(!folderLegacy.length) return 0;
+  const n=folderLegacy.length;
+  for(const p of folderLegacy) await dirRemove(p);
+  folderLegacy=[];
+  writtenCache.clear();
+  await writeFolderAll();
+  return n;
+}
 async function adoptFolder(h,{read}){
   try{ await idb.set('source',{kind:'folder',h}); }catch(e){}
   if(read){
     const loaded=await loadFolder(h);
     if(loaded){ data=loaded; store.set(LS_KEY,JSON.stringify(data)); }
-    else { dirHandle=h; await writeFolderAll(); }   /* empty folder: seed it from what is open */
-  } else { dirHandle=h; await writeFolderAll(); }
+    else { dirHandle=h; folderStamps.clear(); writtenCache.clear(); await writeFolderAll(); }   /* empty folder: seed it from what is open */
+  } else { dirHandle=h; folderStamps.clear(); writtenCache.clear(); await writeFolderAll(); }
   mode='folder'; fileHandle=null;
+  const migrated=await migrateFolder();
   setFileState('ok');
   $('#projectName').value=data.name; syncFy();
   activeViewId=null; render(); renderNavCounts();
-  toast('Using folder '+h.name+(lastWrite&&lastWrite.read?' ('+lastWrite.files+' ideas in '+lastWrite.ms.toFixed(0)+' ms)':''));
+  startFolderPoll();
+  toast('Using folder '+h.name
+    +(lastWrite&&lastWrite.read?' ('+lastWrite.files+' ideas in '+lastWrite.ms.toFixed(0)+' ms)':'')
+    +(migrated?', '+migrated+' file'+(migrated===1?'':'s')+' upgraded':''));
 }
 async function openFolderPicker(read){
   try{ await adoptFolder(await window.showDirectoryPicker({mode:'readwrite'}),{read}); }
   catch(e){ if(e.name!=='AbortError'){ console.error(e); toast('Could not open folder: '+e.message); } }
 }
 
+/* ---------- folder polling ---------- */
+/* Nothing else tells this tab that somebody added an idea, so re-read the folder on
+   an interval. Only entities whose file changed are parsed, anything we have not yet
+   flushed is left alone, and the idea open in the panel is never yanked out from
+   under the cursor. */
+const POLL_MS=25000;
+let pollTimer=null, pollBusy=false;
+function startFolderPoll(){
+  clearInterval(pollTimer);
+  if(mode==='folder') pollTimer=setInterval(pollFolder,POLL_MS);
+}
+function stopFolderPoll(){ clearInterval(pollTimer); pollTimer=null; }
+async function pollFolder(){
+  if(mode!=='folder'||!dirHandle||pollBusy||document.hidden) return;
+  if(pending.ideas.size||pending.removed.size||pending.config) return;  /* our own write is still in flight */
+  pollBusy=true;
+  try{
+    let added=0, changed=0, gone=0, cfgChanged=false;
+    const seen=new Set();
+    for(const f of await dirList('ideas')){
+      if(!f.name.endsWith('.json')) continue;
+      const path='ideas/'+f.name; seen.add(path);
+      const file=await f.h.getFile();
+      if(folderStamps.get(path)===file.lastModified) continue;
+      folderStamps.set(path,file.lastModified);
+      let o; try{ o=JSON.parse(await file.text()); }catch(e){ continue; }
+      if(!o||!o.id) continue;
+      writtenCache.set(path,JSON.stringify(o,null,2));
+      const n=data.ideas.findIndex(x=>x.id===o.id);
+      if(n<0){ o.custom=o.custom||{}; data.ideas.push(o); added++; }
+      else if(String(o.updated||'')>String(data.ideas[n].updated||'')){
+        o.custom=o.custom||{}; data.ideas[n]=o; changed++;
+      }
+    }
+    for(const path of [...folderStamps.keys()]){
+      if(!path.startsWith('ideas/')||seen.has(path)) continue;
+      folderStamps.delete(path); writtenCache.delete(path);
+      const n=data.ideas.findIndex(x=>x.id===path.slice(6,-5));
+      if(n>=0){ const wasOpen=openId===data.ideas[n].id; data.ideas.splice(n,1); gone++; if(wasOpen) closePanel(); }
+    }
+    for(const path of ['project.json'].concat(CONFIG_SINGLES.map(([n])=>'config/'+n+'.json'))){
+      const parts=path.split('/'), name=parts.pop();
+      try{
+        const file=await (await (await dirSub(parts.join('/'))).getFileHandle(name)).getFile();
+        if(folderStamps.get(path)!==file.lastModified) cfgChanged=true;
+      }catch(e){}
+    }
+    for(const [name] of CONFIG_COLLS){
+      const files=(await dirList('config/'+name)).filter(f=>f.name.endsWith('.json'));
+      const paths=new Set(files.map(f=>'config/'+name+'/'+f.name));
+      for(const f of files){
+        const path='config/'+name+'/'+f.name;
+        if(folderStamps.get(path)!==(await f.h.getFile()).lastModified) cfgChanged=true;
+      }
+      for(const path of folderStamps.keys())
+        if(path.startsWith('config/'+name+'/')&&!paths.has(path)) cfgChanged=true;
+    }
+    if(cfgChanged){
+      const proj=await dirReadJson('project.json');
+      if(proj){
+        const cfg=await readFolderConfig(proj);
+        Object.assign(data,{name:proj.name,fiscalStart:proj.fiscalStart,fiscalName:proj.fiscalName,
+          fieldNames:proj.fieldNames||data.fieldNames, seq:Math.max(data.seq||0,proj.seq||0),
+          fields:cfg.fields||[], statuses:cfg.statuses||data.statuses, buckets:cfg.buckets||data.buckets,
+          views:cfg.views||[], templates:cfg.templates||[]});
+        data=normalize(data);
+        $('#projectName').value=data.name; syncFy();
+      }
+    }
+    if(added+changed+gone||cfgChanged){
+      store.set(LS_KEY,JSON.stringify(data));
+      render(); if(openId) renderPanel(); renderNavCounts();
+      const bits=[];
+      if(added) bits.push(added+' new');
+      if(changed) bits.push(changed+' updated');
+      if(gone) bits.push(gone+' removed');
+      if(cfgChanged) bits.push('settings changed');
+      toast('Folder refreshed: '+bits.join(', '));
+    }
+  }catch(e){ console.error(e); }
+  finally{ pollBusy=false; }
+}
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden) pollFolder(); });
 async function writeFile(){
   if(!fileHandle) return;
   try{
@@ -909,7 +1100,7 @@ const idb = {
 };
 
 async function adoptHandle(h, {read}){
-  fileHandle=h; dirHandle=null; mode='file';
+  fileHandle=h; dirHandle=null; mode='file'; stopFolderPoll();
   try{ await idb.set('source',{kind:'file',h}); }catch(e){}
   if(read){
     const f = await h.getFile();
@@ -1109,8 +1300,7 @@ function setField(i, field, value, label){
 }
 const TEMPLATE_KEYS=['description','status','bucket','impact','effort','confidence','reach','owner','labels'];
 function createIdea(title,templateId){
-  data.seq=(data.seq||0)+1;
-  const i={id:uid(), key:'IDEA-'+data.seq, title, description:'', status:(statuses().find(x=>x.id==='discovery')||statuses()[0]).id, impact:3, effort:3, confidence:50, reach:0, labels:[], owner:'', delivery:'', bucket:'none', start:'', end:'', insights:[], comments:[], history:[{ts:now(),text:'Created'}], created:now(), updated:now()};
+  const i={id:uid(), key:nextKey(), title, description:'', status:(statuses().find(x=>x.id==='discovery')||statuses()[0]).id, impact:3, effort:3, confidence:50, reach:0, labels:[], owner:'', delivery:'', bucket:'none', start:'', end:'', insights:[], comments:[], history:[{ts:now(),text:'Created'}], created:now(), updated:now()};
   const t=(data.templates||[]).find(x=>x.id===templateId);
   if(t){
     TEMPLATE_KEYS.forEach(k=>{ if(t[k]!==undefined&&t[k]!=='') i[k]=Array.isArray(t[k])?[...t[k]]:t[k]; });
@@ -1127,7 +1317,7 @@ function deleteIdea(id){
   const i=ideaById(id); if(!i) return;
   if(!confirm('Delete '+i.key+' "'+i.title+'"? This cannot be undone.')) return;
   data.ideas=data.ideas.filter(x=>x.id!==id);
-  closePanel(); commit({removed:i.key, config:true}); toast('Deleted '+i.key);
+  closePanel(); commit({removed:i.id, config:true}); toast('Deleted '+i.key);
 }
 
 /* ---------- links, archive, merge, manual rank ---------- */
@@ -1979,6 +2169,9 @@ function init(){
   const fySel=$('#fyStart'); fySel.innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'">'+new Date(2000,m-1,1).toLocaleDateString(undefined,{month:'long'})+'</option>').join('');
   syncFy();
   fySel.addEventListener('change',e=>{ data.fiscalStart=Number(e.target.value); syncFy(); persist({config:true}); render(); });
+  const pfx=$('#userPrefix');
+  pfx.value=keyPrefix;
+  pfx.addEventListener('change',e=>{ e.target.value=setKeyPrefix(e.target.value); });
   $('#fyName').addEventListener('change',e=>{ data.fiscalName=e.target.value; persist({config:true}); render(); });
   $('#projectName').addEventListener('change',e=>{ data.name=e.target.value.trim()||'Untitled project'; e.target.value=data.name; persist({config:true}); });
   $('#search').addEventListener('input',e=>{ ui.q=e.target.value; render(); });

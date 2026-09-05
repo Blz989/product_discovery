@@ -14,10 +14,14 @@ A single-file, no-server replacement for Jira Product Discovery. Open `index.htm
 
 ```
 Your Roadmap/
-  project.json          name, key sequence, fiscal settings
-  config/               fields, statuses, buckets, views, templates
-  ideas/IDEA-12.json    one file per idea
-  assets/               images, once rich text lands
+  project.json               name, fiscal settings, display order
+  config/statuses.json       the choice lists
+  config/buckets.json
+  config/templates.json
+  config/fields/<id>.json    one file per custom field
+  config/views/<id>.json     one file per saved view
+  ideas/<id>.json            one file per idea, named by its internal id
+  assets/                    images, once rich text lands
 ```
 
 **Open folder** reads one back. An empty folder is seeded from whatever is currently open, so
@@ -29,6 +33,32 @@ file. The rail reports exactly what it wrote, so you can watch the difference.
 
 Both modes stay available and you can move between them. File mode remains the simplest thing that
 works, and a folder is easier to sync, diff and back up per idea.
+
+A folder written by an earlier version is upgraded the first time you open it: idea files are
+renamed from their key to their id, and `config/views.json` and `config/fields.json` are split into
+one file per item. Nothing is lost and the rail says how many files it touched.
+
+### Sharing a folder with other people
+
+A folder on Box, Drive or a network share can be opened by more than one person, and the app is
+built to make that survivable rather than to pretend it is a database. Three things make it work:
+
+- **Files are named by an internal id, never by the idea key.** Two people creating an idea at the
+  same moment can never write the same file, so a clash costs a duplicate label at worst and can
+  never destroy somebody's idea.
+- **Set Your initials in the left rail** before you start. New ideas are then keyed `BL-12` rather
+  than `IDEA-12`, so a duplicate label does not happen either. The number is worked out from the
+  ideas actually in front of you, so it stays right as other people's ideas arrive. Leave it blank
+  and keys stay `IDEA-n`, which is the right choice if you are the only one editing.
+- **The folder is re-read every 25 seconds** and when you switch back to the tab. New, changed and
+  deleted ideas appear on their own, and a note in the corner says what arrived. Anything you have
+  edited but not yet saved is never overwritten by the refresh.
+
+Because each idea and each view is its own file, two people working on different ideas, or on
+different saved views, never write the same file at all. What is **not** handled is two people
+editing the *same* idea within the same few seconds: the later save wins and the earlier one is
+lost, exactly as it would be with a shared spreadsheet. For a team that genuinely edits together,
+the answer is a real backend rather than a sync folder.
 
 Safari and Firefox cannot write to a local file from a web page. There the app keeps everything in browser storage and you use **Export JSON** / **Import JSON** to move data around.
 
