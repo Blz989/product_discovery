@@ -8,6 +8,28 @@ A single-file, no-server replacement for Jira Product Discovery. Open `index.htm
 2. Click **Save as** in the left rail and put the `.json` project file in your Box or Google Drive folder. The app writes to that file automatically after every change.
 3. Next time, open the page and click **Reconnect** (or **Open file**). The browser remembers the file.
 
+### Or use a folder instead of a file
+
+**Save as folder** writes the project as a directory rather than one document:
+
+```
+Your Roadmap/
+  project.json          name, key sequence, fiscal settings
+  config/               fields, statuses, buckets, views, templates
+  ideas/IDEA-12.json    one file per idea
+  assets/               images, once rich text lands
+```
+
+**Open folder** reads one back. An empty folder is seeded from whatever is currently open, so
+switching over is one click and your existing `.json` file stays untouched as a backup.
+
+Why bother: in file mode every keystroke rewrites the whole document, which is fine for text and
+becomes painful once descriptions carry screenshots. In folder mode a field edit writes one small
+file. The rail reports exactly what it wrote, so you can watch the difference.
+
+Both modes stay available and you can move between them. File mode remains the simplest thing that
+works, and a folder is easier to sync, diff and back up per idea.
+
 Safari and Firefox cannot write to a local file from a web page. There the app keeps everything in browser storage and you use **Export JSON** / **Import JSON** to move data around.
 
 The first launch loads a sample project so the views have something to show. Delete those ideas or import your own file.
