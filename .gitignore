@@ -1,0 +1,5 @@
+.DS_Store
+node_modules/
+*.log
+# Local project data files. Keep your own backlog out of the repo.
+*.local.json
