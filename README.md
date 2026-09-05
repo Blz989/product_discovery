@@ -114,6 +114,30 @@ panel offers a **Use IDEA-41** button that moves one of them to the next free nu
 family. Sorting by the Key column groups each family together and orders numerically inside it, so
 `FIN-2, FIN-11, IDEA-9, IDEA-10, OPS-1` come out in that order rather than interleaved.
 
+## Import from a spreadsheet
+
+**Import CSV** in the rail reads a spreadsheet of ideas. It opens a dialog showing every column with a
+sample value from the file, and what it will become. Column names are matched automatically, so a
+file exported from this app, or one with headings like `Summary`, `Status`, `Impact`, `Target date`
+or the name of any custom field, needs no setup. Change any mapping with the dropdown, or set a
+column to **Skip this column**.
+
+Two modes:
+
+- **Add all as new** turns every row into a new idea.
+- **Update matching keys** looks up each row's Key. A match updates that idea, recording each change
+  in its history; anything unmatched is added as new.
+
+The parser handles quoted fields containing commas, line breaks and doubled quotes, and it detects
+comma, semicolon and tab delimiters, so a file Excel saved in any locale works. Values are matched to
+options by name, case-insensitively: `Prioritized` finds the Prioritized status. Labels and
+multi-selects split on semicolons. Checkboxes accept yes, no, true, false, 1 and 0. Dates take
+`YYYY-MM-DD` or anything your browser can parse. Ratings clamp to 1 to 5.
+
+**Anything that does not match is left empty rather than guessed,** and the app tells you which
+values it could not place so you can fix the file or add the missing options. Rows with no title are
+skipped. Computed columns like Score are ignored, since they are outputs.
+
 ## Who changed what
 
 Set **Your name** in the left rail. From then on your name is stamped on every change you make,

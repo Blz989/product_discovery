@@ -310,6 +310,12 @@ tr.drop-target td{box-shadow:inset 0 2px 0 var(--accent)}
 .comment .m{font-size:11px;color:var(--ink-3)}
 .history{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--ink-2)}
 .history .ts{font-family:var(--mono);color:var(--ink-3);margin-right:8px}
+.csv-map{display:flex;flex-direction:column;gap:6px;max-height:46vh;overflow-y:auto;border:1px solid var(--line);border-radius:8px;padding:10px}
+.csv-map .row{display:grid;grid-template-columns:minmax(0,1fr) 18px minmax(0,1fr);gap:8px;align-items:center}
+.csv-map .src{font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.csv-map .src .ex{color:var(--ink-3);display:block;font-size:11px}
+.csv-map .arw{color:var(--ink-3);text-align:center}
+.csv-map select{width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:4px 6px;font-size:12px}
 .history .by{font-weight:600;color:var(--ink)}
 .history .by::after{content:' \00b7 ';font-weight:400;color:var(--ink-3)}
 .panel-f{padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
@@ -439,7 +445,9 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
       <div class="btn-row">
         <button class="btn sm ghost" id="btnExport">Export JSON</button>
         <button class="btn sm ghost" id="btnImport">Import JSON</button>
+        <button class="btn sm ghost" id="btnImportCsv">Import CSV</button>
         <input type="file" id="importInput" accept="application/json,.json" hidden>
+        <input type="file" id="csvInput" accept=".csv,text/csv,text/plain" hidden>
       </div>
       <div class="small muted" id="fsNote"></div>
     </div>
@@ -598,6 +606,19 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
     <textarea id="vDesc" placeholder="What this view is for (optional)"></textarea>
     <div class="small muted" id="vSummary"></div>
     <div class="btn-row"><button class="btn sm danger" id="vDelete" hidden>Delete view</button><span class="spacer"></span><button class="btn" id="vCancel">Cancel</button><button class="btn primary" id="vSave">Save</button></div>
+  </div>
+</div>
+
+<div class="modal" id="csvModal" hidden>
+  <div class="box" style="max-width:680px">
+    <h2>Import CSV</h2>
+    <div class="small muted" id="csvSummary"></div>
+    <div class="exp-row"><span class="eyebrow">Rows</span><div class="seg" id="csvMode"><button data-m="new" class="on">Add all as new</button><button data-m="update">Update matching keys</button></div></div>
+    <div class="small muted" id="csvModeNote" style="margin:-4px 0 8px"></div>
+    <div class="eyebrow" style="margin-bottom:6px">Columns</div>
+    <div id="csvMap" class="csv-map"></div>
+    <div class="small muted" id="csvWarn" style="margin-top:8px"></div>
+    <div class="btn-row"><span class="spacer"></span><button class="btn" id="csvCancel">Cancel</button><button class="btn primary" id="csvGo">Import</button></div>
   </div>
 </div>
 
@@ -1352,8 +1373,215 @@ function setField(i, field, value, label){
   return true;
 }
 const TEMPLATE_KEYS=['description','status','bucket','impact','effort','confidence','reach','owner','labels'];
+/* ---------- CSV import ---------- */
+/* Parses RFC 4180: quoted fields may hold the delimiter, newlines and doubled quotes.
+   The delimiter is sniffed because Excel writes semicolons in several locales. */
+function sniffDelim(text){
+  const line=text.slice(0, text.indexOf('\n')<0?text.length:text.indexOf('\n'));
+  let best=',', bestN=-1;
+  [',',';','\t','|'].forEach(d=>{ const n=line.split(d).length-1; if(n>bestN){ bestN=n; best=d; } });
+  return bestN>0?best:',';
+}
+function parseCsv(text){
+  text=text.replace(/^﻿/,'');
+  const d=sniffDelim(text), rows=[];
+  let row=[], cell='', q=false, i=0;
+  while(i<text.length){
+    const c=text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){ cell+='"'; i+=2; continue; } q=false; i++; continue; }
+      cell+=c; i++; continue;
+    }
+    if(c==='"'){ q=true; i++; continue; }
+    if(c===d){ row.push(cell); cell=''; i++; continue; }
+    if(c==='\r'){ i++; continue; }
+    if(c==='\n'){ row.push(cell); rows.push(row); row=[]; cell=''; i++; continue; }
+    cell+=c; i++;
+  }
+  if(cell!==''||row.length){ row.push(cell); rows.push(row); }
+  return rows.filter(r=>r.some(x=>String(x).trim()!==''));
+}
+
+const eqi=(a,b)=>String(a||'').trim().toLowerCase()===String(b||'').trim().toLowerCase();
+/* Targets a CSV column can map to. Formulas and computed fields are read-only, so they
+   are not offered: importing a Score would be importing an output. */
+function importTargets(){
+  return [{key:'t:title',name:'Idea title'},{key:'t:key',name:'Key'},{key:'t:description',name:'Description'}]
+    .concat(fieldDefs().filter(f=>!f.computed&&f.type!=='formula').map(f=>({key:'f:'+f.id,name:f.name})));
+}
+/* Header names our own export writes, plus the ones Jira and JPD write. */
+const HEADER_ALIASES={'idea':'t:title','title':'t:title','summary':'t:title','name':'t:title',
+  'key':'t:key','id':'t:key','issue key':'t:key','description':'t:description','details':'t:description',
+  'conf.':'f:confidence','confidence %':'f:confidence','target':'f:end','target date':'f:end','end':'f:end',
+  'end date':'f:end','start':'f:start','start date':'f:start','delivery ticket':'f:delivery',
+  'assignee':'f:owner','label':'f:labels','labels':'f:labels'};
+const HEADER_IGNORE=['#','score','insight weight','insights','updated','created','rank'];
+function autoMap(headers){
+  const targets=importTargets();
+  return headers.map(h=>{
+    const k=String(h||'').trim().toLowerCase();
+    if(!k||HEADER_IGNORE.includes(k)) return '';
+    if(HEADER_ALIASES[k]&&targets.some(t=>t.key===HEADER_ALIASES[k])) return HEADER_ALIASES[k];
+    const byName=targets.find(t=>eqi(t.name,k));
+    if(byName) return byName.key;
+    const byId=targets.find(t=>eqi(t.key.split(':')[1],k));
+    return byId?byId.key:'';
+  });
+}
+
+/* Text to a stored value. Returns {v} or {v, miss} when an option name did not match. */
+function coerceCell(f, raw){
+  const s=String(raw==null?'':raw).trim();
+  if(!s) return {v:null};
+  const opt=t=>(f.options||[]).find(o=>eqi(o.name,t)||eqi(o.id,t));
+  const split=t=>(t.includes(';')?t.split(';'):t.split(',')).map(x=>x.trim()).filter(Boolean);
+  switch(f.type){
+    case 'select': { const o=opt(s); return o?{v:o.id}:{v:null,miss:[s]}; }
+    case 'multiselect': {
+      if(f.id==='labels') return {v:split(s)};          /* labels are free text, not a fixed list */
+      const out=[], miss=[];
+      split(s).forEach(p=>{ const o=opt(p); if(o) out.push(o.id); else miss.push(p); });
+      return {v:out, miss:miss.length?miss:undefined};
+    }
+    case 'checkbox':
+      if(/^(y|yes|true|1|x|on|checked)$/i.test(s)) return {v:true};
+      if(/^(n|no|false|0|off)$/i.test(s)) return {v:false};
+      return {v:null,miss:[s]};
+    case 'number': case 'rating': {
+      const n=parseFloat(s.replace(/[,%\s]/g,''));
+      if(isNaN(n)) return {v:null,miss:[s]};
+      return {v: f.type==='rating' ? Math.max(1,Math.min(5,Math.round(n))) : n};
+    }
+    case 'date': {
+      if(/^\d{4}-\d{2}-\d{2}/.test(s)) return {v:s.slice(0,10)};
+      const d=new Date(s);
+      if(isNaN(d)) return {v:null,miss:[s]};
+      const pad=n=>String(n).padStart(2,'0');
+      return {v:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+    }
+    default: return {v:s};
+  }
+}
+
+let csvRows=null, csvHeaders=null, csvMapping=null, csvMode='new';
+function openCsvDialog(file){
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const rows=parseCsv(String(r.result));
+      if(rows.length<2) throw new Error('needs a header row and at least one idea');
+      csvHeaders=rows[0].map(h=>String(h||'').trim());
+      csvRows=rows.slice(1);
+      csvMapping=autoMap(csvHeaders);
+      csvMode='new';
+      renderCsvDialog(file.name);
+      $('#csvModal').hidden=false;
+    }catch(e){ toast('Could not read that CSV: '+e.message); }
+  };
+  r.onerror=()=>toast('Could not read that file');
+  r.readAsText(file);
+}
+function renderCsvDialog(fileName){
+  const targets=importTargets();
+  $('#csvSummary').textContent=fileName+' · '+csvRows.length+' row'+(csvRows.length===1?'':'s')+', '+csvHeaders.length+' columns';
+  $('#csvMap').innerHTML=csvHeaders.map((h,n)=>{
+    const sample=(csvRows.find(r=>String(r[n]||'').trim())||[])[n]||'';
+    return '<div class="row"><div class="src">'+esc(h||'(no header)')+
+      '<span class="ex">'+esc(String(sample).slice(0,44))+'</span></div><div class="arw">→</div>'+
+      '<select data-col="'+n+'"><option value="">Skip this column</option>'+
+      targets.map(t=>'<option value="'+t.key+'"'+(csvMapping[n]===t.key?' selected':'')+'>'+esc(t.name)+'</option>').join('')+
+      '</select></div>';
+  }).join('');
+  $('#csvMap').querySelectorAll('select').forEach(sel=>sel.onchange=()=>{
+    csvMapping[Number(sel.dataset.col)]=sel.value; updateCsvWarn();
+  });
+  $('#csvMode').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    csvMode=b.dataset.m;
+    $('#csvMode').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+    updateCsvWarn();
+  });
+  updateCsvWarn();
+}
+function updateCsvWarn(){
+  const hasTitle=csvMapping.includes('t:title'), hasKey=csvMapping.includes('t:key');
+  $('#csvModeNote').textContent = csvMode==='update'
+    ? 'Rows whose Key matches an existing idea update it. The rest are added as new ideas.'
+    : 'Every row becomes a new idea, even if its key already exists.';
+  const msgs=[];
+  if(!hasTitle) msgs.push('Map one column to Idea title before importing.');
+  if(csvMode==='update'&&!hasKey) msgs.push('Updating needs a Key column so rows can be matched.');
+  const dupes=csvMapping.filter((m,n)=>m&&csvMapping.indexOf(m)!==n);
+  if(dupes.length) msgs.push('Two columns are mapped to the same field.');
+  $('#csvWarn').textContent=msgs.join(' ');
+  $('#csvGo').disabled=msgs.length>0;
+}
+function runCsvImport(){
+  const byKey=new Map(data.ideas.map(i=>[String(i.key||'').toLowerCase(),i]));
+  const cols=csvMapping.map((m,n)=>({m,n})).filter(c=>c.m);
+  const titleCol=cols.find(c=>c.m==='t:title'), keyCol=cols.find(c=>c.m==='t:key');
+  let added=0, updated=0, skipped=0;
+  const missed=new Map();
+  const touched=[];
+  csvRows.forEach(row=>{
+    const title=String(row[titleCol.n]||'').trim();
+    const rawKey=keyCol?normKey(row[keyCol.n]):'';
+    let i=null, isNew=false;
+    if(csvMode==='update'&&rawKey&&byKey.has(rawKey.toLowerCase())) i=byKey.get(rawKey.toLowerCase());
+    if(!i){
+      if(!title){ skipped++; return; }
+      i=newIdeaObject(title);
+      if(rawKey&&!keyTaken(rawKey,i.id)) i.key=rawKey;
+      isNew=true;
+    } else if(title) {
+      setField(i,'title',title,'Title');
+    }
+    cols.forEach(c=>{
+      if(c.m==='t:title'||c.m==='t:key') return;
+      const raw=row[c.n];
+      if(c.m==='t:description'){
+        const v=String(raw==null?'':raw).trim();
+        if(v){ if(isNew) i.description=v; else setField(i,'description',v,'Description'); }
+        return;
+      }
+      const f=fieldById(c.m.slice(2)); if(!f) return;
+      const {v,miss}=coerceCell(f,raw);
+      if(miss) miss.forEach(x=>{ const k=f.name+': '+x; missed.set(k,(missed.get(k)||0)+1); });
+      if(v==null||(Array.isArray(v)&&!v.length)) return;
+      if(isNew){ if(f.custom) i.custom[f.id]=v; else i[f.id]=v; }
+      else setVal(i,f,v);
+    });
+    if(isNew){
+      i.rank=Math.min(0,...data.ideas.map(x=>x.rank||0))-1;
+      data.ideas.unshift(i);
+      byKey.set(String(i.key).toLowerCase(),i);
+      added++;
+    } else { addHistory(i,'Updated by CSV import'); updated++; }
+    touched.push(i);
+  });
+  $('#csvModal').hidden=true;
+  csvRows=csvHeaders=csvMapping=null;
+  commit({ideas:touched, config:true});
+  const bits=[];
+  if(added) bits.push(added+' added');
+  if(updated) bits.push(updated+' updated');
+  if(skipped) bits.push(skipped+' skipped with no title');
+  toast('CSV import: '+(bits.join(', ')||'nothing to do'));
+  if(missed.size){
+    const top=[...missed].slice(0,6).map(([k,n])=>k+(n>1?' ('+n+'×)':''));
+    setTimeout(()=>toast('Values that matched no option, left empty: '+top.join('; ')
+      +(missed.size>6?' and '+(missed.size-6)+' more':'')), 2600);
+  }
+}
+
+function newIdeaObject(title){
+  return {id:uid(), key:nextKey(), title:title||'', description:'',
+    status:(statuses().find(x=>x.id==='discovery')||statuses()[0]).id,
+    impact:3, effort:3, confidence:50, reach:0, labels:[], owner:'', delivery:'', bucket:'none',
+    start:'', end:'', insights:[], comments:[], links:[], archived:false, custom:{}, rank:0,
+    history:[{ts:now(),text:'Created',by:userName||undefined}], created:now(), updated:now()};
+}
 function createIdea(title,templateId){
-  const i={id:uid(), key:nextKey(), title, description:'', status:(statuses().find(x=>x.id==='discovery')||statuses()[0]).id, impact:3, effort:3, confidence:50, reach:0, labels:[], owner:'', delivery:'', bucket:'none', start:'', end:'', insights:[], comments:[], history:[{ts:now(),text:'Created',by:userName||undefined}], created:now(), updated:now()};
+  const i=newIdeaObject(title);
   const t=(data.templates||[]).find(x=>x.id===templateId);
   if(t){
     TEMPLATE_KEYS.forEach(k=>{ if(t[k]!==undefined&&t[k]!=='') i[k]=Array.isArray(t[k])?[...t[k]]:t[k]; });
@@ -2301,17 +2529,21 @@ function init(){
   ['x','y','size','color'].forEach(k=>$('#ax'+k.charAt(0).toUpperCase()+k.slice(1)).addEventListener('change',e=>{ ui.matrix[k]=e.target.value; render(); }));
   $('#btnExport').onclick=exportJSON;
   $('#btnImport').onclick=()=>$('#importInput').click();
+  $('#btnImportCsv').onclick=()=>$('#csvInput').click();
+  $('#csvInput').addEventListener('change',e=>{ if(e.target.files[0]) openCsvDialog(e.target.files[0]); e.target.value=''; });
+  $('#csvCancel').onclick=()=>{ $('#csvModal').hidden=true; csvRows=csvHeaders=csvMapping=null; };
+  $('#csvGo').onclick=runCsvImport;
   $('#importInput').addEventListener('change',e=>{ if(e.target.files[0]) importJSON(e.target.files[0]); e.target.value=''; });
   $('#btnOpen').onclick=openFile; $('#btnSaveAs').onclick=saveAs; $('#btnReconnect').onclick=reconnect;
   $('#btnOpenDir').onclick=()=>openFolderPicker(true);
   $('#btnSaveDir').onclick=()=>openFolderPicker(false);
   if(!window.showDirectoryPicker||window.self!==window.top){ $('#btnOpenDir').disabled=true; $('#btnSaveDir').disabled=true; }
   if(!hasFS){ $('#btnOpen').disabled=true; $('#btnSaveAs').disabled=true; $('#fsNote').textContent = window.self!==window.top ? 'File access is unavailable inside an embedded page. Open index.html directly in Chrome or Edge to sync a project file.' : 'This browser cannot write files directly. Use Export and Import, or open in Chrome or Edge to sync a project file.'; }
-  if(!store.available){ $('#btnExport').disabled=true; $('#btnImport').disabled=true;
+  if(!store.available){ $('#btnExport').disabled=true; $('#btnImport').disabled=true; $('#btnImportCsv').disabled=true;
     $('#fsNote').textContent='This page is embedded in a sandbox that blocks storage and downloads, so edits last only until you close the tab. Open index.html directly to keep your work.'; }
   document.addEventListener('keydown',e=>{
     const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-    if(e.key==='Escape'){ const open=['#mergeModal','#exportModal','#filtersModal','#columnsModal','#viewModal','#cardsModal','#axesModal','#tplModal'].find(m=>!$(m).hidden); if(open) $(open).hidden=true; else if(railOpen()) closeRail(); else if(!$('#fieldsModal').hidden) closeFields(); else if(!$('#newModal').hidden) hideNew(); else if(openId) closePanel(); else document.activeElement.blur(); }
+    if(e.key==='Escape'){ const open=['#csvModal','#mergeModal','#exportModal','#filtersModal','#columnsModal','#viewModal','#cardsModal','#axesModal','#tplModal'].find(m=>!$(m).hidden); if(open) $(open).hidden=true; else if(railOpen()) closeRail(); else if(!$('#fieldsModal').hidden) closeFields(); else if(!$('#newModal').hidden) hideNew(); else if(openId) closePanel(); else document.activeElement.blur(); }
     if(typing) return;
     if(e.key==='n'||e.key==='N'){ e.preventDefault(); showNew(); }
     if(e.key==='/'){ e.preventDefault(); $('#search').focus(); }

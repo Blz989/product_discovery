@@ -77,6 +77,14 @@ Everything lives in one file with four layers:
 - **View configuration.** Matrix axes, dot size and colour are field ids in `ui.matrix`, with ranges derived per field so a 1-5 rating, a 0-100 number and a formula all plot correctly. Board swimlanes reuse `groupList`, so lanes work with any field grouping already supports. `ui.cardFields` chooses card content. All of it lives in the saved-view snapshot.
 - **Templates.** `data.templates` holds partial ideas. Creating from one copies a fixed key list plus custom values and records the template name in history.
 - **Fiscal calendar.** `data.fiscalStart` (1 to 12) and `data.fiscalName` (`end` or `start`) live in the project file. `fiscalOf(date)` returns the fiscal quarter and year, and the Timeline's quarter headers are built from it. A January start yields plain calendar labels.
+- **CSV import.** A hand-written RFC 4180 parser with delimiter sniffing, since Excel writes
+  semicolons in several locales. Headers are auto-mapped through an alias table plus a
+  case-insensitive match on field name and id, so the app's own export round-trips without setup and
+  computed columns are skipped. Each cell is coerced by the target field's type; an option name that
+  matches nothing yields an empty value and is counted, never invented, and the counts are reported
+  after the import. Two modes: append every row, or match on key and update, the latter routing
+  through `setVal` so each change lands in the idea's history. `newIdeaObject` is shared with
+  `createIdea` so the two cannot drift.
 - **Export.** CSV is generated from the same filtered and sorted set the view renders, using the view's visible columns or the full set. Values are rendered as display text (option names, ISO dates, semicolon-joined lists) and RFC 4180 quoted, with a BOM for Excel. PDF is the browser's own print path rather than a bundled PDF library: a print stylesheet forces the light palette, hides the rail, toolbar and editing chrome, flattens table controls to text, and a `beforeprint` handler fills a print-only header and sets a zoom factor measured from the widest element so the table or timeline fits the page.
 - **Responsive.** Below 900px the rail becomes an off-canvas drawer toggled from the toolbar, since it carries the only navigation. The timeline's sticky label column width is a CSS custom property so the scroll-to-today math and the today marker stay correct at both widths.
 - **Detail panel.** Slide-over editor for a single idea, including a Fields section rendered from the custom field definitions. Field changes append a history entry describing old and new values.
