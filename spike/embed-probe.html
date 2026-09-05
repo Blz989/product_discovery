@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Embed probe</title>
+<style>
+:root{
+  --bg:#f4f6f9; --surface:#fff; --surface-2:#eceff4; --line:#d6dbe4; --line-strong:#b9c1cf;
+  --ink:#1b2130; --ink-2:#4a5468; --ink-3:#7a8497; --accent:#2d5fa6; --accent-soft:#e3ebf8;
+  --good:#2e8b57; --warn:#c98a1b; --crit:#c43d3d;
+  --good-soft:#e2f3e8; --warn-soft:#fbf0d9; --crit-soft:#f9e1e1;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --surface:#1a1f28; --surface-2:#232a35; --line:#2e3644; --line-strong:#3f4a5c;
+  --ink:#e6e9ef; --ink-2:#aeb6c5; --ink-3:#7d8798; --accent:#6d9be6; --accent-soft:#213554;
+  --good:#5cc48a; --warn:#e0a848; --crit:#e56b6b;
+  --good-soft:#1c3328; --warn-soft:#3a2f16; --crit-soft:#3d1f1f;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --surface:#1a1f28; --surface-2:#232a35; --line:#2e3644; --line-strong:#3f4a5c;
+  --ink:#e6e9ef; --ink-2:#aeb6c5; --ink-3:#7d8798; --accent:#6d9be6; --accent-soft:#213554;
+  --good:#5cc48a; --warn:#e0a848; --crit:#e56b6b;
+  --good-soft:#1c3328; --warn-soft:#3a2f16; --crit-soft:#3d1f1f;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:900px;margin:0 auto;padding:20px 18px 60px}
+h1{font-size:20px;margin:0 0 4px;letter-spacing:-.01em}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3);margin:26px 0 8px}
+.lede{color:var(--ink-2);margin:0 0 18px;max-width:65ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px}
+.verdict{border-radius:8px;padding:12px 14px;font-weight:600;display:flex;gap:10px;align-items:flex-start;border:1px solid transparent}
+.verdict small{display:block;font-weight:400;margin-top:3px;font-size:13px;opacity:.9}
+.verdict.pending{background:var(--surface-2);color:var(--ink-2)}
+.verdict.pass{background:var(--good-soft);color:var(--good)}
+.verdict.warn{background:var(--warn-soft);color:var(--warn)}
+.verdict.fail{background:var(--crit-soft);color:var(--crit)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--line)}
+td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td.s{width:78px}
+.pill{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:4px}
+.pill.pass{background:var(--good-soft);color:var(--good)}
+.pill.fail{background:var(--crit-soft);color:var(--crit)}
+.pill.warn{background:var(--warn-soft);color:var(--warn)}
+.pill.skip{background:var(--surface-2);color:var(--ink-3)}
+.pill.run{background:var(--accent-soft);color:var(--accent)}
+td.d{color:var(--ink-2);font-size:13px}
+td.d code{font-family:var(--mono);font-size:12px;background:var(--surface-2);padding:1px 4px;border-radius:3px;word-break:break-all}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.f{display:flex;flex-direction:column;gap:4px}
+.f.wide{grid-column:1/-1}
+label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);font-weight:600}
+input{border:1px solid var(--line-strong);background:var(--bg);color:var(--ink);border-radius:6px;padding:7px 9px;font:inherit;width:100%}
+input::placeholder{color:var(--ink-3)}
+.hint{font-size:12px;color:var(--ink-3)}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+button{border:1px solid var(--line-strong);background:var(--surface);color:var(--ink);border-radius:6px;padding:8px 13px;font:inherit;font-weight:500;cursor:pointer}
+button:hover:not(:disabled){background:var(--surface-2)}
+button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.primary:hover:not(:disabled){filter:brightness(1.08)}
+button:disabled{opacity:.5;cursor:not-allowed}
+textarea{width:100%;min-height:200px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:6px;padding:10px;font-family:var(--mono);font-size:12px;resize:vertical}
+.foot{margin-top:26px;color:var(--ink-3);font-size:12px;max-width:70ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Discovery Desk embed probe</h1>
+  <p class="lede">Answers one question: can a page hosted on your own domain, embedded in a SharePoint
+  page, sign a user in and read SharePoint lists through Microsoft Graph? Run it as a top-level page
+  first to get a baseline, then embed the same URL in a SharePoint page and run it again. The two
+  results together tell you whether the embedded approach is viable or whether the app has to open
+  in its own tab.</p>
+
+  <div id="verdict" class="verdict pending">Running environment checks…</div>
+
+  <h2>Environment</h2>
+  <div class="card"><table><tbody id="envRows"></tbody></table></div>
+
+  <h2>Sign-in and Graph</h2>
+  <div class="card">
+    <div class="grid">
+      <div class="f"><label for="clientId">Application (client) ID</label><input id="clientId" placeholder="00000000-0000-0000-0000-000000000000" autocomplete="off"></div>
+      <div class="f"><label for="tenantId">Directory (tenant) ID</label><input id="tenantId" placeholder="tenant GUID, or organizations" autocomplete="off"></div>
+      <div class="f wide"><label for="siteRef">SharePoint site, optional</label><input id="siteRef" placeholder="contoso.sharepoint.com:/sites/FinanceTech" autocomplete="off"><span class="hint">Leave blank to test sign-in only. Reading a site needs a Sites permission; reading your own profile does not.</span></div>
+      <div class="f wide"><label for="msalUrl">MSAL script URL</label><input id="msalUrl" autocomplete="off"><span class="hint">Change this if your network blocks the default, or host the file yourself and point here.</span></div>
+    </div>
+    <div class="row">
+      <button class="primary" id="btnAuth">Sign in and test Graph</button>
+      <button id="btnReset">Clear results</button>
+      <span class="hint" id="authHint">Needs a click, because sign-in may open a popup.</span>
+    </div>
+    <table style="margin-top:14px"><tbody id="authRows"></tbody></table>
+  </div>
+
+  <h2>Report</h2>
+  <p class="hint" style="margin:0 0 8px">Select all and copy. Paste this back when discussing results.</p>
+  <textarea id="report" readonly spellcheck="false"></textarea>
+
+  <p class="foot">Nothing here is written to your SharePoint tenant. Every call is a read. Values you
+  type are kept in the page URL so you can bookmark a configured probe, and in local storage when the
+  browser allows it.</p>
+</div>
+
+<script>
+/* ============================================================
+   Embed probe. No dependencies except MSAL, loaded on demand.
+   Every check is defensive: in a sandboxed frame even reading
+   window.localStorage throws, so nothing is touched unguarded.
+   ============================================================ */
+const DEFAULT_MSAL='https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js';
+const $=s=>document.querySelector(s);
+const results=[];
+
+function row(tbody,name){
+  const tr=document.createElement('tr');
+  tr.innerHTML='<td class="s"><span class="pill run">run</span></td><td style="width:210px"><b>'+name+'</b></td><td class="d"></td>';
+  tbody.appendChild(tr);
+  return {
+    set(state,detail){
+      tr.querySelector('.pill').className='pill '+state;
+      tr.querySelector('.pill').textContent=state;
+      tr.querySelector('.d').innerHTML=detail||'';
+      results.push({name,state,detail:String(detail||'').replace(/<[^>]+>/g,'')});
+      writeReport();
+    }
+  };
+}
+const code=t=>'<code>'+String(t).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))+'</code>';
+
+function writeReport(){
+  const lines=['Discovery Desk embed probe','Run at '+new Date().toISOString(),
+    'Page URL: '+location.href.split('#')[0],
+    'Framed: '+(isFramed()?'yes':'no'),'',
+    ...results.map(r=>'['+r.state.toUpperCase().padEnd(4)+'] '+r.name+(r.detail?' — '+r.detail:''))];
+  $('#report').value=lines.join('\n');
+}
+
+const isFramed=()=>{ try{ return window.self!==window.top; }catch(e){ return true; } };
+
+/* ---------- config, kept in the URL so a sandbox cannot lose it ---------- */
+function readConfig(){
+  const q=new URLSearchParams(location.search);
+  const stored=k=>{ try{ return window.localStorage.getItem('probe:'+k)||''; }catch(e){ return ''; } };
+  return {
+    clientId:q.get('client')||stored('client')||'',
+    tenantId:q.get('tenant')||stored('tenant')||'',
+    siteRef:q.get('site')||stored('site')||'',
+    msalUrl:q.get('msal')||stored('msal')||DEFAULT_MSAL
+  };
+}
+function saveConfig(){
+  const c={clientId:$('#clientId').value.trim(),tenantId:$('#tenantId').value.trim(),
+           siteRef:$('#siteRef').value.trim(),msalUrl:$('#msalUrl').value.trim()};
+  const q=new URLSearchParams();
+  if(c.clientId) q.set('client',c.clientId);
+  if(c.tenantId) q.set('tenant',c.tenantId);
+  if(c.siteRef) q.set('site',c.siteRef);
+  if(c.msalUrl&&c.msalUrl!==DEFAULT_MSAL) q.set('msal',c.msalUrl);
+  try{ history.replaceState(null,'',location.pathname+(q.toString()?'?'+q:'')); }catch(e){}
+  try{ Object.entries({client:c.clientId,tenant:c.tenantId,site:c.siteRef,msal:c.msalUrl})
+        .forEach(([k,v])=>window.localStorage.setItem('probe:'+k,v)); }catch(e){}
+  return c;
+}
+
+/* ---------- environment checks ---------- */
+const env={};
+function runEnvChecks(){
+  const t=$('#envRows');
+
+  const rFrame=row(t,'Page context');
+  env.framed=isFramed();
+  rFrame.set('pass', env.framed
+    ? 'Running inside an iframe. This is the case that matters.'
+    : 'Running as a top-level page. Embed this same URL in SharePoint and run again.');
+
+  const rOrigin=row(t,'Origin');
+  let origin='(unavailable)';
+  try{ origin=window.origin||location.origin; }catch(e){}
+  env.opaque = origin==='null';
+  rOrigin.set(env.opaque?'fail':'pass', code(origin)+(env.opaque
+    ? ' — an opaque origin means the frame is sandboxed without allow-same-origin. Storage and MSAL cannot work here.'
+    : ''));
+
+  const rSecure=row(t,'Secure context');
+  env.secure=window.isSecureContext===true;
+  rSecure.set(env.secure?'pass':'fail', env.secure
+    ? 'HTTPS or localhost. Required for the crypto MSAL depends on.'
+    : 'Not a secure context. Serve the page over HTTPS or sign-in cannot work.');
+
+  const rCrypto=row(t,'Web Crypto');
+  env.crypto = !!(window.crypto && window.crypto.subtle);
+  rCrypto.set(env.crypto?'pass':'fail', env.crypto
+    ? 'crypto.subtle present, PKCE is possible.'
+    : 'crypto.subtle missing. MSAL cannot complete a PKCE sign-in.');
+
+  const rLocal=row(t,'localStorage');
+  try{
+    window.localStorage.setItem('__probe','1'); window.localStorage.removeItem('__probe');
+    env.localStorage=true; rLocal.set('pass','Readable and writable. MSAL can cache tokens.');
+  }catch(e){
+    env.localStorage=false;
+    rLocal.set('fail','Threw '+code(e.name)+'. '+(/sandbox/i.test(e.message)
+      ? 'The frame is sandboxed without allow-same-origin.'
+      : 'Storage is blocked in this context.')+' MSAL has nowhere to cache tokens.');
+  }
+
+  const rSession=row(t,'sessionStorage');
+  try{ window.sessionStorage.setItem('__probe','1'); window.sessionStorage.removeItem('__probe');
+    env.sessionStorage=true; rSession.set('pass','Available. Usable as the MSAL cache.');
+  }catch(e){ env.sessionStorage=false; rSession.set('fail','Threw '+code(e.name)+'.'); }
+
+  const rCookie=row(t,'Cookies');
+  try{
+    document.cookie='__probe=1;SameSite=None;Secure;path=/';
+    env.cookies=document.cookie.indexOf('__probe=')>=0;
+    document.cookie='__probe=;Max-Age=0;path=/';
+  }catch(e){ env.cookies=false; }
+  rCookie.set(env.cookies?'pass':'warn', env.cookies
+    ? 'Third-party cookies are reaching this frame.'
+    : 'Blocked. Silent single sign-on through a hidden iframe is unlikely to work, so plan on a popup for the first sign-in.');
+
+  const rIdb=row(t,'IndexedDB');
+  try{ const req=indexedDB.open('__probe',1);
+    req.onsuccess=()=>{ try{ req.result.close(); indexedDB.deleteDatabase('__probe'); }catch(e){} rIdb.set('pass','Available.'); };
+    req.onerror=()=>rIdb.set('warn','Open failed. Not required, only noted.');
+  }catch(e){ rIdb.set('warn','Threw '+code(e.name)+'. Not required, only noted.'); }
+
+  const rPop=row(t,'Popups');
+  rPop.set('skip','Only testable from a click. Covered by the sign-in test below.');
+
+  const rNet=row(t,'Graph reachable');
+  fetch('https://graph.microsoft.com/v1.0/me',{method:'GET'})
+    .then(r=>{ env.graphReachable=true;
+      rNet.set(r.status===401?'pass':'warn','HTTP '+r.status+(r.status===401
+        ? '. Expected: unauthenticated, and CORS let the response through, so Graph is reachable from this origin.'
+        : '. Unexpected but the endpoint answered.')); verdict(); })
+    .catch(e=>{ env.graphReachable=false;
+      rNet.set('fail','Request failed: '+code(e.message)+'. Either the network blocks graph.microsoft.com or a content policy blocks the call.'); verdict(); });
+
+  verdict();
+}
+
+/* ---------- verdict ---------- */
+function verdict(extra){
+  const v=$('#verdict');
+  const blockers=[];
+  if(env.opaque) blockers.push('the frame is sandboxed without allow-same-origin');
+  if(!env.localStorage && !env.sessionStorage) blockers.push('no storage is available for the token cache');
+  if(!env.secure) blockers.push('the page is not served over HTTPS');
+  if(!env.crypto) blockers.push('Web Crypto is unavailable');
+  if(env.graphReachable===false) blockers.push('graph.microsoft.com is not reachable from this origin');
+
+  if(blockers.length){
+    v.className='verdict fail';
+    v.innerHTML='Embedded sign-in will not work here.<small>Because '+blockers.join(', and ')+
+      '. Fall back to opening the app in its own tab from a link on the SharePoint page. Everything else about the design still holds.</small>';
+    return;
+  }
+  if(!env.framed){
+    v.className='verdict warn';
+    v.innerHTML='Baseline looks fine, but this is not the real test.<small>You are on a top-level page. '+
+      'Embed this exact URL in a SharePoint page and run it again. The embedded result is the one that decides the approach.</small>';
+    return;
+  }
+  v.className='verdict pass';
+  v.innerHTML='Environment supports embedded sign-in.'+
+    '<small>'+(env.cookies?'':'Third-party cookies are blocked, so expect a popup for the first sign-in rather than silent SSO. ')+
+    'Run the sign-in test below to confirm end to end.'+(extra?' '+extra:'')+'</small>';
+}
+
+/* ---------- MSAL and Graph ---------- */
+function loadScript(src){
+  return new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src=src; s.onload=res; s.onerror=()=>rej(new Error('could not load '+src));
+    document.head.appendChild(s);
+  });
+}
+async function runAuth(){
+  const t=$('#authRows'); t.innerHTML='';
+  $('#btnAuth').disabled=true;
+  const cfg=saveConfig();
+
+  if(!cfg.clientId){ row(t,'Configuration').set('fail','Enter the application (client) ID first.'); $('#btnAuth').disabled=false; return; }
+
+  const rLoad=row(t,'Load MSAL');
+  try{ await loadScript(cfg.msalUrl); rLoad.set('pass','Loaded from '+code(cfg.msalUrl)); }
+  catch(e){ rLoad.set('fail',e.message+'. If the CDN is blocked, download msal-browser.min.js, host it beside this file, and put its URL in the field above.'); $('#btnAuth').disabled=false; return; }
+
+  const rInit=row(t,'Initialise MSAL');
+  let app;
+  try{
+    app=new msal.PublicClientApplication({
+      auth:{ clientId:cfg.clientId,
+             authority:'https://login.microsoftonline.com/'+(cfg.tenantId||'organizations'),
+             redirectUri:location.origin+location.pathname },
+      cache:{ cacheLocation: env.localStorage?'localStorage':'sessionStorage' },
+      system:{ allowRedirectInIframe:true }
+    });
+    if(app.initialize) await app.initialize();
+    rInit.set('pass','Redirect URI is '+code(location.origin+location.pathname)+'. This exact value must be registered on the app as a single-page application redirect URI.');
+  }catch(e){ rInit.set('fail',e.message); $('#btnAuth').disabled=false; return; }
+
+  const rTok=row(t,'Acquire a token');
+  let account=null, token=null;
+  try{
+    const existing=app.getAllAccounts();
+    if(existing.length) account=existing[0];
+    if(!account){
+      try{ const r=await app.ssoSilent({scopes:['User.Read']}); account=r.account; token=r.accessToken;
+           rTok.set('pass','Silent single sign-on succeeded, no prompt needed.'); }
+      catch(silentErr){
+        const r=await app.loginPopup({scopes:['User.Read']});
+        account=r.account; token=r.accessToken;
+        rTok.set('pass','Popup sign-in succeeded. Silent SSO first failed with '+code(silentErr.errorCode||silentErr.name||'unknown')+', which is normal when third-party cookies are blocked.');
+      }
+    }
+    if(!token){
+      const r=await app.acquireTokenSilent({scopes:['User.Read'],account});
+      token=r.accessToken;
+      rTok.set('pass','Token acquired silently for an existing session.');
+    }
+  }catch(e){
+    rTok.set('fail',(e.errorCode?code(e.errorCode)+' — ':'')+(e.errorMessage||e.message||String(e))+
+      (/popup/i.test(String(e.message||''))?' A blocked popup inside an iframe is the classic failure here, and is the reason to fall back to opening the app in its own tab.':''));
+    $('#btnAuth').disabled=false; return;
+  }
+
+  const rMe=row(t,'Graph: read my profile');
+  try{
+    const r=await fetch('https://graph.microsoft.com/v1.0/me',{headers:{Authorization:'Bearer '+token}});
+    const j=await r.json();
+    if(!r.ok) throw new Error((j.error&&j.error.message)||('HTTP '+r.status));
+    rMe.set('pass','Signed in as '+code(j.userPrincipalName||j.displayName||'unknown')+'. Authentication works end to end.');
+  }catch(e){ rMe.set('fail',e.message); $('#btnAuth').disabled=false; return; }
+
+  if(cfg.siteRef){
+    const rSite=row(t,'Graph: resolve the site');
+    let siteId=null;
+    try{
+      const st=await app.acquireTokenSilent({scopes:['Sites.Read.All'],account}).catch(()=>app.acquireTokenPopup({scopes:['Sites.Read.All'],account}));
+      const r=await fetch('https://graph.microsoft.com/v1.0/sites/'+encodeURI(cfg.siteRef),{headers:{Authorization:'Bearer '+st.accessToken}});
+      const j=await r.json();
+      if(!r.ok) throw new Error((j.error&&j.error.message)||('HTTP '+r.status));
+      siteId=j.id;
+      rSite.set('pass','Resolved '+code(j.displayName||j.name)+'. Site id '+code(siteId));
+      const rLists=row(t,'Graph: read the lists');
+      const r2=await fetch('https://graph.microsoft.com/v1.0/sites/'+siteId+'/lists?$select=name,displayName',{headers:{Authorization:'Bearer '+st.accessToken}});
+      const j2=await r2.json();
+      if(!r2.ok) throw new Error((j2.error&&j2.error.message)||('HTTP '+r2.status));
+      rLists.set('pass','Read '+j2.value.length+' lists. The data path works: '+code(j2.value.slice(0,6).map(l=>l.displayName||l.name).join(', ')));
+    }catch(e){
+      rSite.set('fail',e.message+'. A consent error here is expected until an admin grants the Sites permission; sign-in itself already worked above.');
+    }
+  }
+
+  verdict('Sign-in and Graph both succeeded.');
+  $('#btnAuth').disabled=false;
+}
+
+/* ---------- boot ---------- */
+(function(){
+  const c=readConfig();
+  $('#clientId').value=c.clientId; $('#tenantId').value=c.tenantId;
+  $('#siteRef').value=c.siteRef; $('#msalUrl').value=c.msalUrl||DEFAULT_MSAL;
+  $('#btnAuth').onclick=runAuth;
+  $('#btnReset').onclick=()=>{ $('#authRows').innerHTML=''; results.length=0; runEnvChecks(); };
+  ['clientId','tenantId','siteRef','msalUrl'].forEach(id=>$('#'+id).addEventListener('change',saveConfig));
+  runEnvChecks();
+})();
+</script>
+</body>
+</html>
