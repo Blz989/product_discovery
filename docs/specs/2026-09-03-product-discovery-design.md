@@ -39,11 +39,15 @@ Everything lives in one file with four layers:
   that actually changed. `project.json` deliberately carries no timestamp so it is not rewritten on
   every save and does not become a contention point; the display order of views and fields lives
   there, since order is a project-level fact and not a property of any one item.
-- **Idea keys.** The key prefix is per person and lives in browser storage, not the project file, so
-  two people sharing a folder mint `BL-12` and `JS-12` rather than both minting `IDEA-12` from their
-  own stale copy of a shared counter. The number is derived from the keys present in `data` at
-  creation time rather than from a counter, so it stays correct as other people's ideas arrive.
-  `data.seq` is retained for the unprefixed case and for files written by earlier versions.
+- **Idea keys.** The key is a label, not an identity: files are named by the idea's id and links,
+  merges and history all reference ids, so a key can be edited freely and a duplicate costs nothing
+  but confusion. It is editable in the panel, normalized to upper case with a restricted character
+  set, refused when another idea holds it, and recorded in history. `nextFreeKey(like)` returns the
+  next unused number in the same prefix family and is deliberately pure, because it labels a button
+  as well as minting a key and the two must agree; only `nextKey` advances `data.seq`. Duplicates
+  are detected once per render into `dupSet` and surfaced in the Key column and the panel, with a
+  one-click move to a free number. Sorting is by prefix, then by the number zero-padded, so mixed
+  families group rather than interleave.
 - **Folder refresh.** Folder mode polls the directory every 25 seconds, and on tab focus. The
   `lastModified` of every file read or written is recorded, so only files somebody else touched are
   parsed; an entity in the pending set is skipped so an unflushed local edit is never overwritten,

@@ -46,16 +46,9 @@ built to make that survivable rather than to pretend it is a database. Three thi
 - **Files are named by an internal id, never by the idea key.** Two people creating an idea at the
   same moment can never write the same file, so a clash costs a duplicate label at worst and can
   never destroy somebody's idea.
-- **Set Your initials in the left rail** before you start. New ideas are then keyed `BL-12` rather
-  than `IDEA-12`, so a duplicate label does not happen either. The number is worked out from the
-  ideas actually in front of you, so it stays right as other people's ideas arrive. Leave it blank
-  and keys stay `IDEA-n`, which is the right choice if you are the only one editing.
-
-  Only ideas created *after* you set it are affected. Existing ideas keep the keys they have, so a
-  project you have been running on your own ends up with `IDEA-1` through `IDEA-40` followed by
-  `BL-1`, `JS-1` and so on. The key is what shows in the Ideas table, on board cards, on timeline
-  rows, in the matrix labels, in the idea panel, in link and merge pickers, and in CSV exports.
-  Sorting by the Key column groups each person's ideas together rather than interleaving them.
+- **Duplicate keys are flagged, and one click fixes them.** Two people creating an idea between
+  refreshes can still land on the same `IDEA-12`. When that happens both rows show a red `!` in the
+  Key column, and opening either one offers a free number to move to. See below.
 - **The folder is re-read every 25 seconds** and when you switch back to the tab. New, changed and
   deleted ideas appear on their own, and a note in the corner says what arrived. Anything you have
   edited but not yet saved is never overwritten by the refresh.
@@ -103,6 +96,23 @@ Custom fields appear as editable columns in the Ideas table and as inputs in the
 The **Board** has a "Columns" selector that switches its columns to any single select or checkbox field, so you can drag ideas between Domains or between Committed yes and no just as you drag them between statuses.
 
 Grouping and column choices are remembered per view.
+
+## Idea keys
+
+The key is a **label, not an identity**. Files, links, merges and history all reference an idea by
+an internal id, so a key can be changed at any time without breaking anything.
+
+Click the key at the top of the idea panel and type. It is upper-cased and tidied as you go, so
+`fin 42` becomes `FIN-42`, and you can use any prefix you like: `FIN-3`, `OPS-12`, `Q1-7`. A key
+another idea already holds is refused and the field snaps back. Every change is recorded in the
+idea's history.
+
+New ideas are numbered `IDEA-1`, `IDEA-2` and so on, skipping any number already taken.
+
+If two ideas end up with the same key, both rows show a red `!` in the Key column and the idea
+panel offers a **Use IDEA-41** button that moves one of them to the next free number in the same
+family. Sorting by the Key column groups each family together and orders numerically inside it, so
+`FIN-2, FIN-11, IDEA-9, IDEA-10, OPS-1` come out in that order rather than interleaved.
 
 ## Templates
 

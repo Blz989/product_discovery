@@ -114,6 +114,11 @@ a{color:var(--accent)}
 .status::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--sc,var(--ink-3))}
 .label{display:inline-block;font-size:11px;padding:1px 7px;border-radius:4px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line);margin:1px 2px 1px 0}
 .key{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.key-edit{font-family:var(--mono);font-size:12px;color:var(--ink-3);background:transparent;border:1px solid transparent;border-radius:6px;padding:3px 6px;width:13ch;text-transform:uppercase}
+.key-edit:hover{border-color:var(--line)}
+.key-edit:focus{border-color:var(--accent);background:var(--surface);color:var(--ink);outline:none}
+.dup{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;margin-left:5px;border-radius:50%;background:var(--crit-soft);color:var(--crit);font-family:var(--font);font-size:10px;font-weight:700;vertical-align:1px;cursor:help}
+.dup-fix{margin-left:6px;padding:2px 7px;border:1px solid var(--crit);background:var(--crit-soft);color:var(--crit);border-radius:999px;font-size:11px;cursor:pointer}
 .pips{display:inline-flex;gap:2px}
 .pips i{width:6px;height:12px;border-radius:2px;background:var(--line)}
 .pips i.on{background:var(--accent)}
@@ -361,7 +366,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
   *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   @page{size:landscape;margin:12mm}
   html,body{height:auto;overflow:visible;background:#fff}
-  .rail,.rail-scrim,.toolbar,.panel,.scrim,.modal,.toast,.tl-top{display:none!important}
+  .rail,.rail-scrim,.toolbar,.panel,.scrim,.modal,.toast,.tl-top,.dup{display:none!important}
   /* Editable cells are controls on screen and plain values on paper. */
   .content select,.content input[type=number],.content input[type=text],.content input[type=date]{-webkit-appearance:none;appearance:none;border:0!important;background:transparent!important;padding:0!important;color:var(--ink)}
   .app{display:block;height:auto;overflow:visible}
@@ -395,10 +400,6 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
         <span class="small muted">FY starts</span>
         <select id="fyStart" class="small" aria-label="Fiscal year start month" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 4px"></select>
         <select id="fyName" class="small" aria-label="Fiscal year naming" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 4px"><option value="end">FY = end year</option><option value="start">FY = start year</option></select>
-      </div>
-      <div class="btn-row" style="align-items:center;gap:6px;padding:0 6px">
-        <span class="small muted">Your initials</span>
-        <input id="userPrefix" class="small" maxlength="4" placeholder="IDEA" aria-label="Your initials, used to prefix the keys of ideas you create" title="Shared folder? Give each person different initials so nobody mints the same idea key." style="width:64px;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:6px;padding:3px 6px;text-transform:uppercase">
       </div>
       <nav class="nav" id="nav">
         <button data-view="list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>Ideas<span class="count" data-count="list"></span></button>
@@ -482,7 +483,8 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
 <div class="scrim" id="scrim" hidden></div>
 <aside class="panel" id="panel" aria-label="Idea detail">
   <div class="panel-h">
-    <span class="key" id="pKey"></span>
+    <input class="key-edit" id="pKey" aria-label="Idea key" spellcheck="false" autocomplete="off" maxlength="24">
+    <span id="pKeyDup" hidden></span>
     <span class="spacer"></span>
     <button class="btn sm ghost" id="pPrev" title="Previous idea">↑</button>
     <button class="btn sm ghost" id="pNext" title="Next idea">↓</button>
@@ -784,29 +786,54 @@ function persist(change){
 function commit(change){ persist(change); render(); if(openId) renderPanel(); }
 
 /* ---------- idea keys ---------- */
-/* The key prefix is per person and lives in browser storage, not the project file,
-   so two people sharing a folder mint BL-12 and JS-12 rather than both minting
-   IDEA-12. The number is derived from the ideas actually present, so it stays
-   correct as other people's ideas arrive. */
-const PREFIX_KEY='dd_prefix';
-let keyPrefix=(store.get(PREFIX_KEY)||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
-function setKeyPrefix(v){
-  keyPrefix=String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,4);
-  store.set(PREFIX_KEY,keyPrefix);
-  return keyPrefix;
-}
-/* Keys sort by prefix first, then numerically inside it, so a shared folder groups
-   each person's ideas instead of interleaving BL-1, JS-1, BL-2. */
+/* Keys are a label, not an identity: files and links are keyed by the idea's id, so a
+   key can be edited freely and a duplicate is cosmetic. Two people working in one
+   folder can still mint the same key from their own stale view, so duplicates are
+   detected and offered a free number rather than prevented. */
+const KEY_RE=/^(.+?)-(\d+)$/;
+/* Sort by prefix first, then numerically inside it, so edited keys group sensibly. */
 function keySortVal(key){
-  const m=String(key||'').match(/^(.+)-(\d+)$/);
+  const m=KEY_RE.exec(String(key||''));
   return m ? m[1]+'\u0000'+String(m[2]).padStart(9,'0') : String(key||'');
 }
+function normKey(v){
+  return String(v||'').trim().toUpperCase().replace(/\s+/g,'-').replace(/[^A-Z0-9._-]/g,'').slice(0,24);
+}
+const keyTaken=(k,exceptId)=>data.ideas.some(x=>x.id!==exceptId&&x.key===k);
+/* The next unused number in the same family as the key given, e.g. IDEA-12 -> IDEA-41.
+   Pure: it is called to label a button as well as to mint, so it must return the same
+   answer both times. Only minting advances the counter. */
+function nextFreeKey(like){
+  const m=KEY_RE.exec(String(like||'')), p=m?m[1]:'IDEA';
+  let n=(p==='IDEA'?Number(data.seq)||0:0);
+  data.ideas.forEach(i=>{ const q=KEY_RE.exec(String(i.key||'')); if(q&&q[1]===p) n=Math.max(n,Number(q[2])); });
+  let k; do{ n++; k=p+'-'+n; }while(keyTaken(k,null));
+  return k;
+}
 function nextKey(){
-  const p=keyPrefix||'IDEA';
-  let n=0;
-  data.ideas.forEach(i=>{ const m=String(i.key||'').match(/^(.+)-(\d+)$/); if(m&&m[1]===p) n=Math.max(n,Number(m[2])); });
-  if(p==='IDEA'){ n=Math.max(n,Number(data.seq)||0); data.seq=n+1; }
-  return p+'-'+(n+1);
+  const k=nextFreeKey('IDEA-0'), m=/^IDEA-(\d+)$/.exec(k);
+  if(m) data.seq=Number(m[1]);
+  return k;
+}
+/* Keys held by more than one idea, recomputed once per render. */
+let dupSet=new Set();
+function refreshDups(){
+  const n=new Map();
+  data.ideas.forEach(i=>n.set(i.key,(n.get(i.key)||0)+1));
+  dupSet=new Set([...n].filter(([,c])=>c>1).map(([k])=>k));
+  return dupSet;
+}
+function renameKey(i,v){
+  const k=normKey(v);
+  if(!k){ toast('A key cannot be empty'); return false; }
+  if(k===i.key) return false;
+  if(keyTaken(k,i.id)){ toast(k+' is already used by another idea'); return false; }
+  const old=i.key; i.key=k;
+  const m=/^IDEA-(\d+)$/.exec(k); if(m) data.seq=Math.max(data.seq||0,Number(m[1]));
+  addHistory(i,'Key changed from '+old+' to '+k);
+  commit({idea:i, config:true});
+  toast('Renamed '+old+' to '+k);
+  return true;
 }
 
 /* ---------- folder backend ---------- */
@@ -1545,6 +1572,7 @@ function renderToolbar(){
 }
 function render(){
   saveUi();
+  refreshDups();
   renderToolbar();
   const c=$('#content'); c.innerHTML='';
   const list=visibleIdeas();
@@ -1581,7 +1609,7 @@ function renderList(c, list){
   const manual=ui.sort.key==='rank'&&!gf;
   const rowHtml=i=>'<tr data-id="'+i.id+'" class="'+(i.archived?'arch ':'')+(manual?'drag-row':'')+'"'+(manual?' draggable="true"':'')+'>'+
       (show('rank')?'<td class="rank right">'+(manual?'⠿ ':'')+(i.rank+1)+'</td>':'')+
-      '<td class="key">'+esc(i.key)+'</td>'+
+      '<td class="key">'+esc(i.key)+(dupSet.has(i.key)?'<span class="dup" title="Another idea has this key. Open it to give it a free number.">!</span>':'')+'</td>'+
       '<td style="min-width:280px"><div class="title">'+esc(i.title)+(i.archived?'<span class="arch-pill">archived</span>':'')+'</div></td>'+
       (show('status')?'<td>'+selectHtml(statuses(),i.status,'data-f="status"')+'</td>':'')+
       (show('impact')?'<td>'+selectHtml(nums,String(i.impact),'data-f="impact"')+'</td>':'')+
@@ -1865,7 +1893,11 @@ function stepPanel(dir){ const rows=sorted(visibleIdeas()); const idx=rows.findI
 
 function renderPanel(){
   const i=ideaById(openId); if(!i){ closePanel(); return; }
-  $('#pKey').textContent=i.key;
+  $('#pKey').value=i.key;
+  const dup=$('#pKeyDup'), isDup=dupSet.has(i.key);
+  dup.hidden=!isDup;
+  if(isDup) dup.innerHTML='<span class="dup" title="Another idea has this key">!</span>'
+    +'<button class="dup-fix" id="pKeyFix">Use '+esc(nextFreeKey(i.key))+'</button>';
   $('#pMeta').textContent='Created '+fmtDate(i.created)+' · updated '+fmtTs(i.updated);
   const b=$('#panelBody');
   const rating=(f,cls='')=>'<div class="rating '+cls+'" data-rating="'+f+'">'+[1,2,3,4,5].map(n=>'<button class="'+(i[f]===n?'on':'')+'" data-v="'+n+'">'+n+'</button>').join('')+'</div>';
@@ -2176,9 +2208,6 @@ function init(){
   const fySel=$('#fyStart'); fySel.innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'">'+new Date(2000,m-1,1).toLocaleDateString(undefined,{month:'long'})+'</option>').join('');
   syncFy();
   fySel.addEventListener('change',e=>{ data.fiscalStart=Number(e.target.value); syncFy(); persist({config:true}); render(); });
-  const pfx=$('#userPrefix');
-  pfx.value=keyPrefix;
-  pfx.addEventListener('change',e=>{ e.target.value=setKeyPrefix(e.target.value); });
   $('#fyName').addEventListener('change',e=>{ data.fiscalName=e.target.value; persist({config:true}); render(); });
   $('#projectName').addEventListener('change',e=>{ data.name=e.target.value.trim()||'Untitled project'; e.target.value=data.name; persist({config:true}); });
   $('#search').addEventListener('input',e=>{ ui.q=e.target.value; render(); });
@@ -2215,6 +2244,20 @@ function init(){
   $('#newTitle').addEventListener('keydown',e=>{ if(e.key==='Enter') $('#newCreate').click(); });
   $('#pClose').onclick=closePanel; $('#scrim').onclick=closePanel;
   $('#pPrev').onclick=()=>stepPanel(-1); $('#pNext').onclick=()=>stepPanel(1);
+  /* The key is a label, so it is editable. Enter commits, Escape puts it back. */
+  $('#pKey').addEventListener('change',e=>{
+    const i=ideaById(openId); if(!i) return;
+    if(!renameKey(i,e.target.value)) e.target.value=i.key;
+  });
+  $('#pKey').addEventListener('keydown',e=>{
+    if(e.key==='Enter'){ e.preventDefault(); e.target.blur(); }
+    else if(e.key==='Escape'){ const i=ideaById(openId); if(i) e.target.value=i.key; e.target.blur(); }
+    e.stopPropagation();
+  });
+  $('#pKeyDup').addEventListener('click',e=>{
+    if(!e.target.closest('#pKeyFix')) return;
+    const i=ideaById(openId); if(i) renameKey(i,nextFreeKey(i.key));
+  });
   $('#pDelete').onclick=()=>deleteIdea(openId);
   $('#pArchive').onclick=()=>{ const i=ideaById(openId); if(!i) return; setArchived(i,!i.archived); commit({idea:i}); };
   $('#pMerge').onclick=()=>{
