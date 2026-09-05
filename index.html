@@ -446,6 +446,7 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
         <button class="btn sm ghost" id="btnExport">Export JSON</button>
         <button class="btn sm ghost" id="btnImport">Import JSON</button>
         <button class="btn sm ghost" id="btnImportCsv">Import CSV</button>
+        <button class="btn sm ghost" id="btnCsvTemplate" title="Download a blank CSV with a column for every field, including your custom ones">CSV template</button>
         <input type="file" id="importInput" accept="application/json,.json" hidden>
         <input type="file" id="csvInput" accept=".csv,text/csv,text/plain" hidden>
       </div>
@@ -1461,6 +1462,44 @@ function coerceCell(f, raw){
     }
     default: return {v:s};
   }
+}
+
+/* A blank CSV carrying a column for every field that can be imported, built from the
+   live field set so a project's own custom fields are always in it. One example row
+   shows the expected shape of each type; its title says to delete it. */
+function buildCsvTemplate(){
+  const iso=d=>{const p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());};
+  const soon=new Date(); const later=new Date(Date.now()+90*864e5);
+  const sample=f=>{
+    switch(f.type){
+      case 'select': { const o=f.id==='status'
+          ? ((f.options||[]).find(x=>x.id==='discovery')||(f.options||[])[0])
+          : (f.options||[])[0];
+        return o?o.name:''; }
+      case 'multiselect': return f.id==='labels'
+        ? (allLabels().slice(0,2).join('; ')||'close; automation')
+        : (f.options||[]).slice(0,2).map(o=>o.name).join('; ');
+      case 'checkbox': return 'yes';
+      case 'rating': return '3';
+      case 'number': return f.id==='confidence'?'70':f.id==='reach'?'100':'0';
+      case 'date': return iso(f.id==='end'?later:soon);
+      default: return f.id==='owner'?'Firstname Lastname':f.id==='delivery'?'DMND0012345':'';
+    }
+  };
+  const fields=fieldDefs().filter(f=>!f.computed&&f.type!=='formula');
+  const head=['Idea title','Key','Description'].concat(fields.map(f=>f.name));
+  const row=['Example row, delete this before importing','','What the problem is, who has it, and what we would build.']
+    .concat(fields.map(sample));
+  return '\ufeff'+[head,row].map(r=>r.map(csvCell).join(',')).join('\r\n')+'\r\n';
+}
+function downloadCsvTemplate(){
+  const blob=new Blob([buildCsvTemplate()],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=(data.name||'discovery').replace(/[^\w.-]+/g,'-').toLowerCase()+'-import-template.csv';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  toast('Template downloaded. Keep the header row, replace the example.');
 }
 
 let csvRows=null, csvHeaders=null, csvMapping=null, csvMode='new';
@@ -2530,6 +2569,7 @@ function init(){
   $('#btnExport').onclick=exportJSON;
   $('#btnImport').onclick=()=>$('#importInput').click();
   $('#btnImportCsv').onclick=()=>$('#csvInput').click();
+  $('#btnCsvTemplate').onclick=downloadCsvTemplate;
   $('#csvInput').addEventListener('change',e=>{ if(e.target.files[0]) openCsvDialog(e.target.files[0]); e.target.value=''; });
   $('#csvCancel').onclick=()=>{ $('#csvModal').hidden=true; csvRows=csvHeaders=csvMapping=null; };
   $('#csvGo').onclick=runCsvImport;
@@ -2539,7 +2579,7 @@ function init(){
   $('#btnSaveDir').onclick=()=>openFolderPicker(false);
   if(!window.showDirectoryPicker||window.self!==window.top){ $('#btnOpenDir').disabled=true; $('#btnSaveDir').disabled=true; }
   if(!hasFS){ $('#btnOpen').disabled=true; $('#btnSaveAs').disabled=true; $('#fsNote').textContent = window.self!==window.top ? 'File access is unavailable inside an embedded page. Open index.html directly in Chrome or Edge to sync a project file.' : 'This browser cannot write files directly. Use Export and Import, or open in Chrome or Edge to sync a project file.'; }
-  if(!store.available){ $('#btnExport').disabled=true; $('#btnImport').disabled=true; $('#btnImportCsv').disabled=true;
+  if(!store.available){ $('#btnExport').disabled=true; $('#btnImport').disabled=true; $('#btnImportCsv').disabled=true; $('#btnCsvTemplate').disabled=true;
     $('#fsNote').textContent='This page is embedded in a sandbox that blocks storage and downloads, so edits last only until you close the tab. Open index.html directly to keep your work.'; }
   document.addEventListener('keydown',e=>{
     const typing=/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);

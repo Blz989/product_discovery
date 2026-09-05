@@ -122,6 +122,11 @@ file exported from this app, or one with headings like `Summary`, `Status`, `Imp
 or the name of any custom field, needs no setup. Change any mapping with the dropdown, or set a
 column to **Skip this column**.
 
+**CSV template** next to it downloads a blank file with a column for every field that can be
+imported, including your own custom fields, plus one example row showing the expected format for
+each type. It is generated from the live field set, so a field you add today is in the template you
+download tomorrow. Hand it to whoever is collecting ideas, keep the header row, replace the example.
+
 Two modes:
 
 - **Add all as new** turns every row into a new idea.

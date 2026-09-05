@@ -85,6 +85,10 @@ Everything lives in one file with four layers:
   after the import. Two modes: append every row, or match on key and update, the latter routing
   through `setVal` so each change lands in the idea's history. `newIdeaObject` is shared with
   `createIdea` so the two cannot drift.
+- **CSV template.** Generated from `fieldDefs()` at click time rather than kept as a static file, so
+  it always carries the project's current custom fields and can never drift from what the importer
+  accepts. The single example row draws its values from each field's own options, and the round trip
+  (template out, import back in) is covered by a test so the two halves stay in agreement.
 - **Export.** CSV is generated from the same filtered and sorted set the view renders, using the view's visible columns or the full set. Values are rendered as display text (option names, ISO dates, semicolon-joined lists) and RFC 4180 quoted, with a BOM for Excel. PDF is the browser's own print path rather than a bundled PDF library: a print stylesheet forces the light palette, hides the rail, toolbar and editing chrome, flattens table controls to text, and a `beforeprint` handler fills a print-only header and sets a zoom factor measured from the widest element so the table or timeline fits the page.
 - **Responsive.** Below 900px the rail becomes an off-canvas drawer toggled from the toolbar, since it carries the only navigation. The timeline's sticky label column width is a CSS custom property so the scroll-to-today math and the today marker stay correct at both widths.
 - **Detail panel.** Slide-over editor for a single idea, including a Fields section rendered from the custom field definitions. Field changes append a history entry describing old and new values.
