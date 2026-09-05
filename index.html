@@ -310,6 +310,8 @@ tr.drop-target td{box-shadow:inset 0 2px 0 var(--accent)}
 .comment .m{font-size:11px;color:var(--ink-3)}
 .history{display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--ink-2)}
 .history .ts{font-family:var(--mono);color:var(--ink-3);margin-right:8px}
+.history .by{font-weight:600;color:var(--ink)}
+.history .by::after{content:' \00b7 ';font-weight:400;color:var(--ink-3)}
 .panel-f{padding:10px 16px;border-top:1px solid var(--line);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 
 /* ---------- overlays ---------- */
@@ -400,6 +402,10 @@ kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line-strong);b
         <span class="small muted">FY starts</span>
         <select id="fyStart" class="small" aria-label="Fiscal year start month" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 4px"></select>
         <select id="fyName" class="small" aria-label="Fiscal year naming" style="border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:3px 4px"><option value="end">FY = end year</option><option value="start">FY = start year</option></select>
+      </div>
+      <div class="btn-row" style="align-items:center;gap:6px;padding:0 6px">
+        <span class="small muted">Your name</span>
+        <input id="userName" maxlength="40" placeholder="not set" aria-label="Your name, shown on changes you make" title="Shown beside the changes, comments and insights you add, so the team can see who did what." style="flex:1;min-width:0;font-size:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:6px;padding:3px 6px">
       </div>
       <nav class="nav" id="nav">
         <button data-view="list"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 4h12M2 8h12M2 12h12"/></svg>Ideas<span class="count" data-count="list"></span></button>
@@ -784,6 +790,19 @@ function persist(change){
   renderNavCounts();
 }
 function commit(change){ persist(change); render(); if(openId) renderPanel(); }
+
+/* ---------- who is editing ---------- */
+/* There is no sign-in, so the name is whatever this person typed, kept per device
+   rather than in the project file: it says who is at this browser, not who owns the
+   project. Blank is allowed and simply leaves entries unattributed. */
+const USER_KEY='dd_user';
+let userName=(store.get(USER_KEY)||'').trim().slice(0,40);
+function setUserName(v){
+  userName=String(v||'').replace(/\s+/g,' ').trim().slice(0,40);
+  store.set(USER_KEY,userName);
+  return userName;
+}
+const byLine=w=>w?'<span class="by">'+esc(w)+'</span>':'';
 
 /* ---------- idea keys ---------- */
 /* Keys are a label, not an identity: files and links are keyed by the idea's id, so a
@@ -1322,7 +1341,7 @@ function groupList(list,f){
 }
 const collapsed=new Set();
 const groupHeaderLabel=g=>(g.color?'<span class="status" style="--sc:'+g.color+'">'+esc(g.name)+'</span>':esc(g.name));
-function addHistory(i, text){ i.history.push({ts:now(), text}); if(i.history.length>60) i.history.splice(0, i.history.length-60); i.updated=now(); }
+function addHistory(i, text){ i.history.push(userName?{ts:now(), text, by:userName}:{ts:now(), text}); if(i.history.length>60) i.history.splice(0, i.history.length-60); i.updated=now(); }
 function setField(i, field, value, label){
   const old = i[field];
   const same = Array.isArray(value) ? JSON.stringify(old)===JSON.stringify(value) : old===value;
@@ -1334,12 +1353,12 @@ function setField(i, field, value, label){
 }
 const TEMPLATE_KEYS=['description','status','bucket','impact','effort','confidence','reach','owner','labels'];
 function createIdea(title,templateId){
-  const i={id:uid(), key:nextKey(), title, description:'', status:(statuses().find(x=>x.id==='discovery')||statuses()[0]).id, impact:3, effort:3, confidence:50, reach:0, labels:[], owner:'', delivery:'', bucket:'none', start:'', end:'', insights:[], comments:[], history:[{ts:now(),text:'Created'}], created:now(), updated:now()};
+  const i={id:uid(), key:nextKey(), title, description:'', status:(statuses().find(x=>x.id==='discovery')||statuses()[0]).id, impact:3, effort:3, confidence:50, reach:0, labels:[], owner:'', delivery:'', bucket:'none', start:'', end:'', insights:[], comments:[], history:[{ts:now(),text:'Created',by:userName||undefined}], created:now(), updated:now()};
   const t=(data.templates||[]).find(x=>x.id===templateId);
   if(t){
     TEMPLATE_KEYS.forEach(k=>{ if(t[k]!==undefined&&t[k]!=='') i[k]=Array.isArray(t[k])?[...t[k]]:t[k]; });
     i.custom=Object.assign({},t.custom||{});
-    i.history=[{ts:now(),text:'Created from template "'+t.name+'"'}];
+    i.history=[{ts:now(),text:'Created from template "'+t.name+'"',by:userName||undefined}];
   }
   i.custom=i.custom||{}; i.links=[]; i.archived=false;
   i.rank=Math.min(0,...data.ideas.map(x=>x.rank))-1;
@@ -1933,7 +1952,7 @@ function renderPanel(){
       :'<div class="small muted" style="margin-top:6px">No custom fields yet. Add Domain, Committed, or anything else you group by.</div>')+'</div>'+
     '<div><div class="section-h"><h3>Insights</h3><span class="count">'+i.insights.length+' · weight '+insightWeight(i)+'</span></div>'+
       '<div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">'+
-        i.insights.map(x=>'<div class="insight"><div class="txt">'+esc(x.text)+'</div><div class="m"><span class="weight">w'+(x.weight||1)+'</span>'+(x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener">'+esc(x.url.replace(/^https?:\/\//,''))+'</a>':'')+'<span>'+fmtDate(x.created)+'</span><button class="btn sm ghost x" data-del-insight="'+x.id+'" title="Remove">✕</button></div></div>').join('')+
+        i.insights.map(x=>'<div class="insight"><div class="txt">'+esc(x.text)+'</div><div class="m"><span class="weight">w'+(x.weight||1)+'</span>'+(x.url?'<a href="'+esc(x.url)+'" target="_blank" rel="noopener">'+esc(x.url.replace(/^https?:\/\//,''))+'</a>':'')+'<span>'+(x.by?esc(x.by)+' \u00b7 ':'')+fmtDate(x.created)+'</span><button class="btn sm ghost x" data-del-insight="'+x.id+'" title="Remove">✕</button></div></div>').join('')+
         '<form class="add-row" id="insightForm"><input name="text" placeholder="Evidence: a quote, a number, an observation" required><input name="url" placeholder="Source link (optional)"><select name="weight"><option value="1">Weight 1</option><option value="2">Weight 2</option><option value="3">Weight 3</option></select><button class="btn sm">Add</button></form>'+
       '</div></div>'+
     '<div><div class="section-h"><h3>Linked ideas</h3><span class="count">'+i.links.length+'</span></div>'+
@@ -1945,9 +1964,9 @@ function renderPanel(){
         '<button class="btn sm">Link</button></form>'+
       '</div></div>'+
     '<div><div class="section-h"><h3>Comments</h3><span class="count">'+i.comments.length+'</span></div>'+
-      i.comments.map(cm=>'<div class="comment"><div>'+esc(cm.text)+'</div><div class="m">'+fmtTs(cm.created)+' <button class="btn sm ghost" data-del-comment="'+cm.id+'">remove</button></div></div>').join('')+
+      i.comments.map(cm=>'<div class="comment"><div>'+esc(cm.text)+'</div><div class="m">'+(cm.by?esc(cm.by)+' \u00b7 ':'')+fmtTs(cm.created)+' <button class="btn sm ghost" data-del-comment="'+cm.id+'">remove</button></div></div>').join('')+
       '<form id="commentForm" style="display:flex;gap:6px;margin-top:8px"><input name="text" placeholder="Add a comment" required style="flex:1;border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 8px"><button class="btn sm">Post</button></form></div>'+
-    '<div><div class="section-h"><h3>History</h3></div><div class="history" style="margin-top:8px">'+[...i.history].reverse().slice(0,25).map(h=>'<div><span class="ts">'+fmtTs(h.ts)+'</span>'+esc(h.text)+'</div>').join('')+'</div></div>';
+    '<div><div class="section-h"><h3>History</h3></div><div class="history" style="margin-top:8px">'+[...i.history].reverse().slice(0,25).map(h=>'<div><span class="ts">'+fmtTs(h.ts)+'</span>'+byLine(h.by)+esc(h.text)+'</div>').join('')+'</div></div>';
 
   // wire fields
   const commitField=(f,raw)=>{ let v=raw; if(f==='labels') v=raw.split(',').map(s=>s.trim()).filter(Boolean); else if(['confidence','reach'].includes(f)) v=Number(raw)||0; if(setField(i,f,v)) { persist({idea:i}); render(); refreshPanelLite(i); } };
@@ -1959,8 +1978,8 @@ function renderPanel(){
   $('#pManageFields').onclick=openFields;
   b.querySelectorAll('[data-rating]').forEach(g=>g.querySelectorAll('button').forEach(btn=>btn.onclick=()=>commitField(g.dataset.rating,Number(btn.dataset.v))));
   $('#pTitle').addEventListener('change',e=>{ const t=e.target.value.trim(); if(t&&setField(i,'title',t)){ persist({idea:i}); render(); } });
-  $('#insightForm').addEventListener('submit',e=>{ e.preventDefault(); const fd=new FormData(e.target); i.insights.push({id:uid(),text:fd.get('text').trim(),url:fd.get('url').trim(),weight:Number(fd.get('weight')),created:now()}); addHistory(i,'Insight added'); commit({idea:i}); });
-  $('#commentForm').addEventListener('submit',e=>{ e.preventDefault(); const t=new FormData(e.target).get('text').trim(); if(!t) return; i.comments.push({id:uid(),text:t,created:now()}); i.updated=now(); commit({idea:i}); });
+  $('#insightForm').addEventListener('submit',e=>{ e.preventDefault(); const fd=new FormData(e.target); i.insights.push({id:uid(),text:fd.get('text').trim(),url:fd.get('url').trim(),weight:Number(fd.get('weight')),created:now(),by:userName||undefined}); addHistory(i,'Insight added'); commit({idea:i}); });
+  $('#commentForm').addEventListener('submit',e=>{ e.preventDefault(); const t=new FormData(e.target).get('text').trim(); if(!t) return; i.comments.push({id:uid(),text:t,created:now(),by:userName||undefined}); i.updated=now(); commit({idea:i}); });
   b.querySelectorAll('[data-del-insight]').forEach(el=>el.onclick=()=>{ i.insights=i.insights.filter(x=>x.id!==el.dataset.delInsight); addHistory(i,'Insight removed'); commit({idea:i}); });
   b.querySelectorAll('[data-del-comment]').forEach(el=>el.onclick=()=>{ i.comments=i.comments.filter(x=>x.id!==el.dataset.delComment); commit({idea:i}); });
   b.querySelectorAll('[data-goto]').forEach(el=>el.onclick=()=>openPanel(el.dataset.goto));
@@ -2208,6 +2227,9 @@ function init(){
   const fySel=$('#fyStart'); fySel.innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>'<option value="'+m+'">'+new Date(2000,m-1,1).toLocaleDateString(undefined,{month:'long'})+'</option>').join('');
   syncFy();
   fySel.addEventListener('change',e=>{ data.fiscalStart=Number(e.target.value); syncFy(); persist({config:true}); render(); });
+  const who=$('#userName');
+  who.value=userName;
+  who.addEventListener('change',e=>{ e.target.value=setUserName(e.target.value); if(openId) renderPanel(); });
   $('#fyName').addEventListener('change',e=>{ data.fiscalName=e.target.value; persist({config:true}); render(); });
   $('#projectName').addEventListener('change',e=>{ data.name=e.target.value.trim()||'Untitled project'; e.target.value=data.name; persist({config:true}); });
   $('#search').addEventListener('input',e=>{ ui.q=e.target.value; render(); });

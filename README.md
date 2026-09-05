@@ -114,6 +114,26 @@ panel offers a **Use IDEA-41** button that moves one of them to the next free nu
 family. Sorting by the Key column groups each family together and orders numerically inside it, so
 `FIN-2, FIN-11, IDEA-9, IDEA-10, OPS-1` come out in that order rather than interleaved.
 
+## Who changed what
+
+Set **Your name** in the left rail. From then on your name is stamped on every change you make,
+every comment you post and every insight you add, and it shows in the idea's History alongside the
+timestamp:
+
+```
+Sep 5, 2:32 PM   Priya Raman ·  Impact: 3 → 5
+Sep 5, 2:31 PM   Brandon ·      Status: Discovery → Prioritized
+Sep 4, 9:04 AM                  Created
+```
+
+There is no sign-in, so the name is simply what you typed. It lives in your browser rather than in
+the project file, because it says who is at this keyboard, not who owns the project. Everyone
+sharing a folder sets their own.
+
+Leaving it blank is allowed and costs nothing: those entries render with just the timestamp, exactly
+as they did before. Entries written before anyone set a name keep working the same way, so an
+existing project loses nothing.
+
 ## Templates
 
 **Templates** in the rail lists your idea templates. Create one from any idea with **Save as template** in the idea panel: it captures the description, status, bucket, impact, effort, confidence, reach, owner, labels and custom field values. When you add an idea, the **Start from** picker applies a template so the skeleton is already filled in. Templates live in the project file.

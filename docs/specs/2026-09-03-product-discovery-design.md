@@ -39,6 +39,13 @@ Everything lives in one file with four layers:
   that actually changed. `project.json` deliberately carries no timestamp so it is not rewritten on
   every save and does not become a contention point; the display order of views and fields lives
   there, since order is a project-level fact and not a property of any one item.
+- **Attribution.** `addHistory` stamps a `by` name onto each entry, and comments and insights carry
+  the same field. The name lives in browser storage, not the project file: it identifies the person
+  at this browser rather than a property of the project, and each person sharing a folder sets their
+  own. It is omitted rather than stored empty when unset, so entries written before the setting
+  existed, or by someone who left it blank, render with just a timestamp and no migration is needed.
+  There is no authentication behind it, so it is an attribution convenience and not an access
+  control.
 - **Idea keys.** The key is a label, not an identity: files are named by the idea's id and links,
   merges and history all reference ids, so a key can be edited freely and a duplicate costs nothing
   but confusion. It is editable in the panel, normalized to upper case with a restricted character
