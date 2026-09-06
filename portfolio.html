@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#f4f6f9; --surface:#ffffff; --surface-2:#eceff4; --line:#d6dbe4; --line-strong:#b9c1cf;
+  --ink:#1b2130; --ink-2:#4a5468; --ink-3:#7a8497;
+  --accent:#2d5fa6; --accent-ink:#ffffff; --accent-soft:#e3ebf8;
+  --good:#2e8b57; --warn:#c98a1b; --crit:#c43d3d;
+  --good-soft:#e2f3e8; --warn-soft:#fbf0d9; --crit-soft:#f9e1e1;
+  --shadow:0 8px 30px rgba(27,33,48,.12);
+  --radius:8px; --tl-side:230px;
+  --font:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+:root:not([data-theme="light"]){ color-scheme:light }
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  color-scheme:dark;
+  --bg:#12161d; --surface:#1a1f28; --surface-2:#232a35; --line:#2e3644; --line-strong:#3f4a5c;
+  --ink:#e6e9ef; --ink-2:#aeb6c5; --ink-3:#7d8798;
+  --accent:#6d9be6; --accent-ink:#0f1522; --accent-soft:#213554;
+  --good:#5cc48a; --warn:#e0a848; --crit:#e56b6b;
+  --good-soft:#1c3328; --warn-soft:#3a2f16; --crit-soft:#3d1f1f;
+  --shadow:0 12px 40px rgba(0,0,0,.5);
+}}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#12161d; --surface:#1a1f28; --surface-2:#232a35; --line:#2e3644; --line-strong:#3f4a5c;
+  --ink:#e6e9ef; --ink-2:#aeb6c5; --ink-3:#7d8798;
+  --accent:#6d9be6; --accent-ink:#0f1522; --accent-soft:#213554;
+  --good:#5cc48a; --warn:#e0a848; --crit:#e56b6b;
+  --good-soft:#1c3328; --warn-soft:#3a2f16; --crit-soft:#3d1f1f;
+  --shadow:0 12px 40px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box}
+/* .load and .panel set display, which beats the hidden attribute's own display:none. */
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.app{display:grid;grid-template-columns:250px minmax(0,1fr);height:100vh;overflow:hidden}
+
+/* ---------- rail ---------- */
+.rail{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:14px;padding:16px 14px;overflow-y:auto}
+.brand{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:700;letter-spacing:-.01em}
+.mark{width:26px;height:26px;border-radius:7px;background:var(--accent);color:var(--accent-ink);display:grid;place-items:center;font-size:13px;font-weight:700}
+.eyebrow{font-size:10.5px;font-family:var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);margin:0}
+.rail-sec{display:flex;flex-direction:column;gap:8px}
+.src{border:1px solid var(--line);border-radius:var(--radius);background:var(--bg);padding:10px 11px;font-size:12px}
+.src .path{font-family:var(--mono);font-size:11.5px;color:var(--ink);word-break:break-all;margin-bottom:6px}
+.src.muted,.src .muted{color:var(--ink-3)}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:7px;padding:6px 11px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap}
+.btn:hover:not(:disabled){border-color:var(--line-strong)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.sm{padding:4px 9px;font-size:12px}
+.btn.ghost{background:transparent}
+.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+
+.areas-list{display:flex;flex-direction:column;gap:2px}
+.area-row{display:grid;grid-template-columns:16px minmax(0,1fr) auto;gap:8px;align-items:center;padding:6px 7px;border-radius:6px;cursor:pointer;font-size:13px}
+.area-row:hover{background:var(--surface-2)}
+.area-row input{margin:0;cursor:pointer}
+.area-row .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.area-row .ct{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto;display:inline-block}
+.dot.fresh{background:var(--good)} .dot.warm{background:var(--warn)} .dot.cold{background:var(--crit)} .dot.none{background:var(--ink-3)}
+
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:12px;padding:5px 11px;cursor:pointer}
+.seg button.on{background:var(--accent);color:var(--accent-ink)}
+
+/* ---------- main ---------- */
+.main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.toolbar{display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--surface);flex-wrap:wrap}
+h1{font-size:17px;margin:0;font-weight:600;letter-spacing:-.01em}
+.spacer{flex:1}
+.tabs{display:inline-flex;gap:2px;background:var(--surface-2);border-radius:999px;padding:3px}
+.tabs button{border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:13px;padding:5px 14px;border-radius:999px;cursor:pointer}
+.tabs button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+select,input[type=search]{border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:7px;padding:5px 8px;font:inherit;font-size:13px}
+input[type=search]{width:200px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;padding:9px 18px;border-bottom:1px solid var(--line);background:var(--surface)}
+.chip{border:1px solid var(--line);background:var(--surface);color:var(--ink-2);border-radius:999px;padding:3px 11px;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--ink)}
+.chip .sw{width:8px;height:8px;border-radius:50%}
+.chip .solo{font-family:var(--mono);font-size:10px;color:var(--warn);border:1px solid var(--warn);border-radius:3px;padding:0 3px;line-height:1.35}
+.content{flex:1;overflow:auto;padding:18px}
+
+.empty{display:grid;place-items:center;height:100%;text-align:center;color:var(--ink-3);padding:40px}
+.empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:8px}
+.empty p{max-width:54ch;margin:0 auto}
+
+/* ---------- roadmap ---------- */
+.tl{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:hidden}
+.tl-head{display:flex;border-bottom:1px solid var(--line);background:var(--surface-2);position:sticky;top:0;z-index:3}
+.tl-head .pad{width:var(--tl-side);flex:0 0 var(--tl-side);border-right:1px solid var(--line);font-size:11px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);padding:8px 12px;display:flex;align-items:center}
+.tl-q{flex:1;display:flex}
+.tl-q div{flex:1;text-align:center;font-size:11.5px;font-family:var(--mono);color:var(--ink-2);padding:8px 0;border-left:1px solid var(--line)}
+.tl-body{position:relative}
+.tl-group{display:flex;align-items:center;gap:8px;background:var(--surface-2);border-bottom:1px solid var(--line);border-top:1px solid var(--line);padding:6px 12px;font-size:12px;font-weight:600;position:sticky;top:33px;z-index:2}
+.tl-group .ct{font-family:var(--mono);font-weight:400;color:var(--ink-3);font-size:11.5px}
+.tl-row{display:flex;border-bottom:1px solid var(--line);min-height:34px}
+.tl-side{width:var(--tl-side);flex:0 0 var(--tl-side);border-right:1px solid var(--line);padding:6px 12px;font-size:12.5px;cursor:pointer;overflow:hidden}
+.tl-side:hover{background:var(--surface-2)}
+.tl-side .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-side .d{font-size:11px;color:var(--ink-3);font-family:var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tl-track{flex:1;position:relative}
+.tl-grid{position:absolute;inset:0;display:flex;pointer-events:none}
+.tl-grid div{flex:1;border-left:1px solid var(--line)}
+.bar{position:absolute;top:7px;height:20px;border-radius:5px;display:flex;align-items:center;padding:0 7px;font-size:11.5px;color:#fff;overflow:hidden;white-space:nowrap;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.bar.clipL{border-top-left-radius:0;border-bottom-left-radius:0}
+.bar.clipR{border-top-right-radius:0;border-bottom-right-radius:0}
+.today{position:absolute;top:0;bottom:0;width:2px;background:var(--crit);z-index:1;pointer-events:none}
+.tl-none{padding:14px 18px;color:var(--ink-3);font-size:13px}
+.wide{width:auto;flex:1;border-right:0}
+
+/* ---------- tables ---------- */
+.tw{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);overflow:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:9px 13px;border-bottom:1px solid var(--line);vertical-align:middle}
+thead th{position:sticky;top:0;background:var(--surface-2);font-size:10.5px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap;z-index:1;cursor:pointer}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--surface-2)}
+td.n,th.n{text-align:right}
+td.n{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+td.k{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;white-space:nowrap}
+.badge .sw{width:8px;height:8px;border-radius:50%}
+.pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
+.bar-mini{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--surface-2);min-width:60px}
+.bar-mini i{display:block;height:100%}
+
+/* ---------- panel ---------- */
+.scrim{position:fixed;inset:0;background:rgba(10,14,20,.42);z-index:40}
+.panel{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--surface);border-left:1px solid var(--line);box-shadow:var(--shadow);z-index:41;display:flex;flex-direction:column}
+.panel-h{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.panel-b{padding:16px;overflow-y:auto;display:flex;flex-direction:column;gap:16px}
+.key{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+.p-title{font-size:19px;font-weight:600;margin:0;letter-spacing:-.01em}
+.kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.kv > div{background:var(--surface);padding:9px 12px}
+.kv dt{font-size:10.5px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 3px}
+.kv dd{margin:0;font-size:13.5px}
+.sec-h{font-size:10.5px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin:0 0 7px}
+.desc{white-space:pre-wrap;font-size:13.5px;color:var(--ink-2)}
+.ins{border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:8px 10px;margin-bottom:7px;font-size:13px}
+.ins .m{font-size:11.5px;color:var(--ink-3);margin-top:3px;font-family:var(--mono)}
+.hist{font-size:12px;color:var(--ink-2);display:flex;flex-direction:column;gap:5px}
+.hist .ts{font-family:var(--mono);color:var(--ink-3);margin-right:7px}
+.hist .by{font-weight:600;color:var(--ink)}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:22px;background:var(--ink);color:var(--bg);padding:9px 15px;border-radius:999px;font-size:13px;z-index:60;box-shadow:var(--shadow)}
+.load{position:fixed;inset:0;background:var(--bg);display:grid;place-items:center;z-index:70;text-align:center}
+.load .n{font-family:var(--mono);font-size:13px;color:var(--ink-3);margin-top:8px}
+
+#printHead{display:none}
+#printHead h2{margin:0 0 3px;font-size:17px}
+#printHead .m{font-size:12px;color:var(--ink-3);font-family:var(--mono)}
+@media print{
+  :root,:root[data-theme="dark"],:root[data-theme="light"]{--bg:#fff;--surface:#fff;--surface-2:#f2f4f7;--line:#ccd2dc;--line-strong:#aab3c1;
+    --ink:#12161d;--ink-2:#3d4757;--ink-3:#616c7e;--accent:#1f4e8c;--accent-soft:#e7eef8;--shadow:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  @page{size:landscape;margin:11mm}
+  html,body{height:auto;overflow:visible;background:#fff}
+  .app{display:block;height:auto;overflow:visible}
+  .rail,.toolbar,.chips,.panel,.scrim,.toast,.load{display:none!important}
+  .content{overflow:visible;padding:0}
+  .tl-head,.tl-group,thead th{position:static}
+  .tl-row,tr{break-inside:avoid}
+  #printHead{display:block!important;margin-bottom:12px}
+}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .rail{position:fixed;inset:0 auto 0 0;width:270px;z-index:50;transform:translateX(-100%);transition:transform .18s}
+  .rail.open{transform:none}
+  :root{--tl-side:150px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="load" id="loader" hidden><div><b>Reading folders</b><div class="n" id="loadNote"></div></div></div>
+
+<div class="app">
+  <aside class="rail" id="rail">
+    <div class="brand"><div class="mark">P</div>Portfolio Desk</div>
+
+    <div class="rail-sec">
+      <p class="eyebrow">Source</p>
+      <div class="src">
+        <div class="path" id="srcPath">No folder connected</div>
+        <div class="muted" id="srcNote">Pick the parent folder that holds each area's project folder.</div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn sm primary" id="btnPick">Open folder</button>
+          <button class="btn sm" id="btnRefresh" disabled>Refresh</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="rail-sec">
+      <p class="eyebrow">Areas</p>
+      <div class="areas-list" id="areaList"></div>
+      <div class="row"><button class="btn sm ghost" id="btnAllAreas">All</button><button class="btn sm ghost" id="btnNoAreas">None</button></div>
+    </div>
+
+    <div class="rail-sec">
+      <p class="eyebrow">Fiscal year</p>
+      <div class="row"><select id="fyStart" aria-label="Fiscal year start month" style="flex:1"></select></div>
+      <div class="row"><select id="fyName" aria-label="Fiscal year naming" style="flex:1">
+        <option value="end">FY = end year</option><option value="start">FY = start year</option>
+      </select></div>
+    </div>
+
+    <div class="rail-sec">
+      <p class="eyebrow">Theme</p>
+      <div class="seg" id="themeSeg">
+        <button data-t="auto" class="on">Auto</button><button data-t="light">Light</button><button data-t="dark">Dark</button>
+      </div>
+    </div>
+
+    <div class="spacer"></div>
+    <div class="src muted" style="font-size:11.5px">Read only. This never writes to any area's folder.</div>
+  </aside>
+
+  <div class="main">
+    <div class="toolbar">
+      <h1 id="viewTitle">Roadmap</h1>
+      <div class="tabs" id="tabs">
+        <button data-v="roadmap" class="on">Roadmap</button>
+        <button data-v="areas">Areas</button>
+        <button data-v="ideas">Ideas</button>
+      </div>
+      <input type="search" id="q" placeholder="Search all areas" aria-label="Search">
+      <select id="fyPick" aria-label="Fiscal year"></select>
+      <label class="chip" title="Only ideas placed in a bucket, rather than left unplaced. A Later item counts as placed."><input type="checkbox" id="cbCommitted" style="margin:0"> Placed only</label>
+      <label class="chip"><input type="checkbox" id="cbArchived" style="margin:0"> Show archived</label>
+      <span class="spacer"></span>
+      <button class="btn sm" id="btnCsv">CSV</button>
+      <button class="btn sm" id="btnPdf">PDF</button>
+    </div>
+    <div class="chips" id="statusChips"></div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="panel" id="panel" hidden aria-label="Idea detail">
+  <div class="panel-h"><span class="key" id="pKey"></span><span class="pill" id="pArea"></span><span class="spacer"></span><button class="btn sm ghost" id="pClose">&#10005;</button></div>
+  <div class="panel-b" id="panelBody"></div>
+</aside>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const low=s=>String(s||'').trim().toLowerCase();
+
+/* Reading window.localStorage throws outright inside a sandboxed frame, so every access
+   goes through here and the app runs from memory when storage is denied. */
+const store=(()=>{
+  let ls=null;
+  try{ ls=window.localStorage; const k='__pd_probe'; ls.setItem(k,'1'); ls.removeItem(k); }catch(e){ ls=null; }
+  return { available:!!ls,
+    get(k){ try{ return ls?ls.getItem(k):null; }catch(e){ return null; } },
+    set(k,v){ try{ if(ls) ls.setItem(k,v); }catch(e){} } };
+})();
+
+const idb={
+  db:null,
+  open(){ return this.db||(this.db=new Promise((res,rej)=>{
+    let r; try{ r=indexedDB.open('portfolio-desk',1); }catch(e){ return rej(e); }
+    r.onupgradeneeded=()=>r.result.createObjectStore('kv');
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); })); },
+  async get(k){ try{ const db=await this.open(); return await new Promise((res,rej)=>{
+    const t=db.transaction('kv').objectStore('kv').get(k); t.onsuccess=()=>res(t.result); t.onerror=()=>rej(t.error); }); }catch(e){ return null; } },
+  async set(k,v){ try{ const db=await this.open(); return await new Promise((res,rej)=>{
+    const t=db.transaction('kv','readwrite').objectStore('kv').put(v,k); t.onsuccess=()=>res(); t.onerror=()=>rej(t.error); }); }catch(e){} }
+};
+
+/* ---------- state ---------- */
+let rootHandle=null;
+let areas=[];              /* {name, folder, project, ideas[], statuses[], buckets[], updated} */
+let missing=[];            /* subfolders holding no project */
+let merged=[];             /* commingled statuses: {id,name,color,areas:Set} */
+let statusKey=new Map();   /* "<area> <localStatusId>" -> merged id */
+
+const PREFS='pd_prefs';
+const defaults={view:'roadmap',q:'',fyStart:7,fyName:'end',fy:'',hidden:[],statuses:[],committed:false,archived:false,sort:{k:'end',d:1}};
+let ui=Object.assign({},defaults,(()=>{ try{ return JSON.parse(store.get(PREFS)||'{}'); }catch(e){ return {}; } })());
+const savePrefs=()=>store.set(PREFS,JSON.stringify(ui));
+
+/* ---------- fiscal calendar, owned here rather than inherited from any one area ---------- */
+function fiscalOf(d){
+  const s=Number(ui.fyStart)||1, m=d.getMonth()+1, y=d.getFullYear();
+  const off=(m-s+12)%12;
+  const startYear=m>=s?y:y-1;
+  const fy=(ui.fyName==='start'||s===1)?startYear:startYear+1;
+  return {fy, q:Math.floor(off/3)+1};
+}
+const fyLabel=fy=>((Number(ui.fyStart)||1)===1?String(fy):'FY'+String(fy).slice(2));
+function fyWindow(fy){
+  const s=Number(ui.fyStart)||1;
+  const startYear=(ui.fyName==='start'||s===1)?fy:fy-1;
+  return {from:new Date(startYear,s-1,1), to:new Date(startYear+1,s-1,0)};
+}
+const parseD=v=>{ const p=String(v).split('-').map(Number); return new Date(p[0],(p[1]||1)-1,p[2]||1); };
+const fmtD=v=>v?parseD(v).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'}):'—';
+const fmtTs=v=>{ try{ return new Date(v).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}); }catch(e){ return ''; } };
+const DAY=864e5;
+const daysBetween=(a,b)=>Math.round((b-a)/DAY);
+
+/* ---------- loading ---------- */
+async function readJson(dir,path){
+  try{
+    const parts=path.split('/'), name=parts.pop();
+    let d=dir; for(const p of parts) d=await d.getDirectoryHandle(p);
+    return JSON.parse(await (await (await d.getFileHandle(name)).getFile()).text());
+  }catch(e){ return null; }
+}
+async function listDir(dir,path){
+  const out=[];
+  try{ let d=dir; for(const p of String(path||'').split('/').filter(Boolean)) d=await d.getDirectoryHandle(p);
+    for await (const e of d.entries()) out.push({name:e[0],h:e[1]}); }catch(e){}
+  return out;
+}
+
+const DEFAULT_STATUSES=[
+  {id:'parked',name:'Parked',color:'#7d8798'},{id:'discovery',name:'Discovery',color:'#4f83cc'},
+  {id:'prioritized',name:'Prioritized',color:'#8b6fd0'},{id:'delivery',name:'In delivery',color:'#c98a1b'},
+  {id:'shipped',name:'Shipped',color:'#2e8b57'},{id:'wontdo',name:"Won't do",color:'#c43d3d'}];
+const DEFAULT_BUCKETS=[{id:'now',name:'Now'},{id:'next',name:'Next'},{id:'later',name:'Later'},{id:'none',name:'Unplaced'}];
+
+async function loadArea(folder,dh){
+  const project=await readJson(dh,'project.json');
+  if(!project) return null;
+  const files=(await listDir(dh,'ideas')).filter(f=>f.name.endsWith('.json'));
+  const ideas=[];
+  for(const f of files){
+    try{ const o=JSON.parse(await (await f.h.getFile()).text()); if(o&&o.id) ideas.push(o); }catch(e){}
+  }
+  let statuses=await readJson(dh,'config/statuses.json');
+  let buckets=await readJson(dh,'config/buckets.json');
+  if(!Array.isArray(statuses)||!statuses.length) statuses=DEFAULT_STATUSES;
+  if(!Array.isArray(buckets)||!buckets.length) buckets=DEFAULT_BUCKETS;
+  const updated=ideas.reduce((m,i)=>{ const t=Date.parse(i.updated||i.created||0)||0; return t>m?t:m; },0);
+  return {name:project.name||folder, folder, project, ideas, statuses, buckets, updated};
+}
+
+async function loadAll(){
+  if(!rootHandle) return;
+  $('#loader').hidden=false;
+  const keepHidden=ui.hidden.slice();
+  areas=[]; missing=[];
+  const subs=(await listDir(rootHandle,'')).filter(e=>e.h.kind==='directory');
+  let n=0;
+  for(const s of subs){
+    n++; $('#loadNote').textContent=s.name+'  ('+n+' of '+subs.length+')';
+    let a=null;
+    try{ a=await loadArea(s.name,s.h); }catch(e){ console.error(s.name,e); }
+    if(a) areas.push(a); else missing.push(s.name);
+  }
+  areas.sort((a,b)=>a.name.localeCompare(b.name));
+  ui.hidden=keepHidden.filter(n=>areas.some(a=>a.name===n));
+  commingle();
+  $('#loader').hidden=true;
+  $('#srcPath').textContent=rootHandle.name+'/';
+  $('#srcNote').textContent=areas.length+' area'+(areas.length===1?'':'s')+' found'+
+    (missing.length?', '+missing.length+' folder'+(missing.length===1?'':'s')+' with no project':'');
+  $('#btnRefresh').disabled=false;
+  buildFyPicker(); renderRail(); renderChips(); render();
+  toast('Loaded '+areas.reduce((t,a)=>t+a.ideas.length,0)+' ideas from '+areas.length+' area'+(areas.length===1?'':'s'));
+}
+
+/* Statuses commingle rather than being mapped through a table. Match on id first, since
+   every project seeded from the defaults carries those ids even after somebody renames the
+   label; fall back to name, which catches two areas independently adding the same status. */
+function commingle(){
+  const byId=new Map(), byName=new Map();
+  statusKey=new Map();
+  areas.forEach(a=>{
+    (a.statuses||[]).forEach(s=>{
+      let key = byId.has(s.id) ? s.id : (byName.get(low(s.name))||null);
+      if(!key){ key=s.id; byId.set(key,{id:key,name:s.name,color:s.color||'#7d8798',areas:new Set()}); byName.set(low(s.name),key); }
+      byId.get(key).areas.add(a.name);
+      statusKey.set(a.name+' '+s.id, key);
+    });
+  });
+  const order=DEFAULT_STATUSES.map(s=>s.id);
+  merged=[...byId.values()].sort((x,y)=>{
+    const a=order.indexOf(x.id), b=order.indexOf(y.id);
+    if(a>=0&&b>=0) return a-b;
+    if(a>=0) return -1; if(b>=0) return 1;
+    return x.name.localeCompare(y.name);
+  });
+  const known=merged.map(s=>s.id);
+  ui.statuses = ui.statuses.length ? ui.statuses.filter(id=>known.includes(id)) : known.slice();
+  if(!ui.statuses.length) ui.statuses=known.slice();
+}
+const mergedStatus=(area,id)=>merged.find(s=>s.id===statusKey.get(area.name+' '+id))
+  ||{id:'__unknown',name:String(id||'—'),color:'#7d8798',areas:new Set()};
+const bucketName=(area,id)=>((area.buckets||[]).find(b=>b.id===(id||'none'))||{}).name||'';
+/* "Placed" reads the Bucket field, which is built in and present in every area. It means the
+   idea sits on some horizon rather than being unplaced. Later counts, which is why this is not
+   labelled "committed": a Later item is on the roadmap without being a commitment. */
+const isPlaced=(area,i)=>{ const b=low(bucketName(area,i.bucket)); return !!b && b!=='unplaced' && b!=='none'; };
+
+/* ---------- selection ---------- */
+function rows(){
+  const q=low(ui.q), out=[];
+  areas.forEach(a=>{
+    if(ui.hidden.includes(a.name)) return;
+    a.ideas.forEach(i=>{
+      if(i.archived&&!ui.archived) return;
+      const st=mergedStatus(a,i.status);
+      if(ui.statuses.length&&!ui.statuses.includes(st.id)) return;
+      if(ui.committed&&!isPlaced(a,i)) return;
+      if(q){
+        const hay=[i.key,i.title,i.description,i.owner].concat(i.labels||[]).join(' ').toLowerCase();
+        if(hay.indexOf(q)<0) return;
+      }
+      out.push({a,i,st});
+    });
+  });
+  return out;
+}
+
+/* ---------- rail ---------- */
+function staleness(a){
+  if(!a.updated) return {cls:'none',txt:'never',days:1e9};
+  const d=daysBetween(a.updated,Date.now());
+  return {cls:d<=14?'fresh':d<=45?'warm':'cold', txt:d<=0?'today':d+'d', days:d};
+}
+function renderRail(){
+  $('#areaList').innerHTML = areas.map(a=>{
+    const s=staleness(a), on=!ui.hidden.includes(a.name);
+    return '<label class="area-row" title="'+esc(a.name)+' · '+a.ideas.length+' ideas · last change '+s.txt+'">'+
+      '<input type="checkbox" data-area="'+esc(a.name)+'"'+(on?' checked':'')+'>'+
+      '<span class="nm">'+esc(a.name)+'</span>'+
+      '<span class="ct"><span class="dot '+s.cls+'"></span> '+a.ideas.length+'</span></label>';
+  }).join('') + (missing.length?'<div class="src muted" style="margin-top:6px;font-size:11.5px">No project in: '+missing.map(esc).join(', ')+'</div>':'');
+  $$('#areaList input').forEach(el=>el.onchange=()=>{
+    const n=el.dataset.area;
+    ui.hidden = el.checked ? ui.hidden.filter(x=>x!==n) : ui.hidden.concat(n);
+    savePrefs(); render();
+  });
+}
+function renderChips(){
+  $('#statusChips').innerHTML = merged.map(s=>{
+    const isDefault=DEFAULT_STATUSES.some(d=>d.id===s.id);
+    const on=ui.statuses.includes(s.id), solo=!isDefault&&s.areas.size===1&&areas.length>1;
+    return '<button class="chip'+(on?' on':'')+'" data-st="'+esc(s.id)+'" title="Used by: '+esc([...s.areas].join(', '))+'">'+
+      '<span class="sw" style="background:'+esc(s.color)+'"></span>'+esc(s.name)+
+      (solo?'<span class="solo" title="Only '+esc([...s.areas][0])+' uses this. Not part of the standard set.">off-standard</span>':'')+'</button>';
+  }).join('') || '<span class="src muted" style="border:0;padding:0">No statuses loaded</span>';
+  $$('#statusChips .chip').forEach(el=>el.onclick=()=>{
+    const id=el.dataset.st;
+    ui.statuses = ui.statuses.includes(id) ? ui.statuses.filter(x=>x!==id) : ui.statuses.concat(id);
+    savePrefs(); renderChips(); render();
+  });
+}
+
+/* ---------- fiscal year picker ---------- */
+function fyYears(){
+  const set=new Set();
+  areas.forEach(a=>a.ideas.forEach(i=>{
+    [i.start,i.end].forEach(v=>{ if(v) set.add(fiscalOf(parseD(v)).fy); });
+  }));
+  return [...set].sort((a,b)=>a-b);
+}
+function buildFyPicker(){
+  const cur=fiscalOf(new Date()).fy;
+  $('#fyPick').innerHTML='<option value="">Current ('+fyLabel(cur)+')</option>'+
+    fyYears().map(y=>'<option value="'+y+'">'+fyLabel(y)+'</option>').join('')+
+    '<option value="all">All dates</option>';
+  $('#fyPick').value=ui.fy||'';
+}
+const activeFy=()=>ui.fy==='all'?'all':(ui.fy?Number(ui.fy):fiscalOf(new Date()).fy);
+
+/* ---------- render ---------- */
+function render(){
+  savePrefs();
+  $('#viewTitle').textContent={roadmap:'Roadmap',areas:'Areas',ideas:'Ideas'}[ui.view]||'Roadmap';
+  $$('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.v===ui.view));
+  const c=$('#content');
+  if(!rootHandle){
+    c.innerHTML='<div class="empty"><div><b>No folder connected</b><p>Pick the parent folder that contains each area’s project folder, for example the one holding Finance Tech, Operations and Data. Everything below it is read. Nothing is ever written.</p></div></div>';
+    return;
+  }
+  if(!areas.length){
+    c.innerHTML='<div class="empty"><div><b>No projects found</b><p>None of the subfolders contained a project.json. Check that you picked the parent folder rather than one area’s folder.</p></div></div>';
+    return;
+  }
+  ({roadmap:renderRoadmap,areas:renderAreas,ideas:renderIdeas})[ui.view](c);
+}
+
+function renderRoadmap(c){
+  const fy=activeFy();
+  const all=rows();
+  const dated=all.filter(r=>r.i.start&&r.i.end);
+  let from,to;
+  if(fy==='all'){
+    if(!dated.length){ c.innerHTML='<div class="empty"><div><b>Nothing scheduled</b><p>No idea in the visible areas has both a start and a target date.</p></div></div>'; return; }
+    from=new Date(Math.min.apply(null,dated.map(r=>parseD(r.i.start).getTime())));
+    to=new Date(Math.max.apply(null,dated.map(r=>parseD(r.i.end).getTime())));
+  } else { const w=fyWindow(fy); from=w.from; to=w.to; }
+
+  const inWin=dated.filter(r=>parseD(r.i.end)>=from&&parseD(r.i.start)<=to);
+  const outside=dated.filter(r=>inWin.indexOf(r)<0);
+  const undated=all.filter(r=>!(r.i.start&&r.i.end));
+
+  const span=Math.max(1,daysBetween(from,to)+1);
+  const quarters=[];
+  if(fy==='all'){
+    let cur=new Date(from.getFullYear(),from.getMonth(),1);
+    while(cur<=to){ const f=fiscalOf(cur); quarters.push(fyLabel(f.fy)+' Q'+f.q); cur=new Date(cur.getFullYear(),cur.getMonth()+3,1); }
+  } else { [1,2,3,4].forEach(q=>quarters.push(fyLabel(fy)+' Q'+q)); }
+
+  const byArea=new Map();
+  inWin.forEach(r=>{ if(!byArea.has(r.a.name)) byArea.set(r.a.name,[]); byArea.get(r.a.name).push(r); });
+  byArea.forEach(list=>list.sort((x,y)=>parseD(x.i.start)-parseD(y.i.start)));
+
+  const pct=d=>(daysBetween(from,d)/span)*100;
+  const today=new Date(), showToday=today>=from&&today<=to;
+  const label=fy==='all'?'All dates':fyLabel(fy);
+
+  let h='<div id="printHead"><h2>'+esc(label)+' roadmap</h2><div class="m">'+
+    inWin.length+' scheduled · '+byArea.size+' area'+(byArea.size===1?'':'s')+' · '+new Date().toLocaleDateString()+'</div></div>';
+  h+='<div class="tl"><div class="tl-head"><div class="pad">'+esc(label)+'</div><div class="tl-q">'+
+    quarters.map(q=>'<div>'+esc(q)+'</div>').join('')+'</div></div><div class="tl-body">';
+
+  byArea.forEach((list,areaName)=>{
+    h+='<div class="tl-group">'+esc(areaName)+'<span class="ct">'+list.length+'</span></div>';
+    list.forEach(r=>{
+      const s=parseD(r.i.start), e=parseD(r.i.end);
+      const cs=s<from?from:s, ce=e>to?to:e;
+      const left=pct(cs), w=Math.max(1.2,pct(ce)-left+(1/span)*100);
+      h+='<div class="tl-row"><div class="tl-side" data-open="'+esc(r.a.name)+'|'+esc(r.i.id)+'">'+
+        '<div class="t">'+esc(r.i.title)+'</div><div class="d">'+esc(r.i.key||'')+' · '+fmtD(r.i.start)+' → '+fmtD(r.i.end)+'</div></div>'+
+        '<div class="tl-track"><div class="tl-grid">'+quarters.map(()=>'<div></div>').join('')+'</div>'+
+        (showToday?'<div class="today" style="left:'+pct(today).toFixed(3)+'%"></div>':'')+
+        '<div class="bar'+(s<from?' clipL':'')+(e>to?' clipR':'')+'" style="left:'+left.toFixed(3)+'%;width:'+w.toFixed(3)+'%;background:'+esc(r.st.color)+'" '+
+        'data-open="'+esc(r.a.name)+'|'+esc(r.i.id)+'" title="'+esc(r.i.title+' · '+r.st.name+' · '+fmtD(r.i.start)+' to '+fmtD(r.i.end))+'">'+esc(r.i.title)+'</div></div></div>';
+    });
+  });
+  if(!inWin.length) h+='<div class="tl-none">Nothing scheduled inside this window.</div>';
+  h+='</div></div>';
+
+  const stub=(title,list,cap)=>'<div class="tl" style="margin-top:14px"><div class="tl-group" style="position:static">'+title+'<span class="ct">'+list.length+'</span></div>'+
+    list.slice(0,cap).map(r=>'<div class="tl-row"><div class="tl-side wide" data-open="'+esc(r.a.name)+'|'+esc(r.i.id)+'">'+
+      '<div class="t">'+esc(r.a.name)+' · '+esc(r.i.title)+'</div><div class="d">'+
+      (r.i.start?fmtD(r.i.start)+' → '+fmtD(r.i.end):esc(r.st.name))+'</div></div></div>').join('')+
+    (list.length>cap?'<div class="tl-none">and '+(list.length-cap)+' more</div>':'')+'</div>';
+  if(outside.length) h+=stub('Scheduled outside this window',outside,40);
+  if(undated.length) h+=stub('Not scheduled',undated,40);
+
+  c.innerHTML=h;
+  wireOpen(c);
+}
+
+function renderAreas(c){
+  const all=rows();
+  const per=areas.filter(a=>ui.hidden.indexOf(a.name)<0).map(a=>{
+    const mine=all.filter(r=>r.a===a), counts=new Map();
+    mine.forEach(r=>counts.set(r.st.id,(counts.get(r.st.id)||0)+1));
+    return {a, n:mine.length, counts,
+      placed:mine.filter(r=>isPlaced(a,r.i)).length,
+      scheduled:mine.filter(r=>r.i.start&&r.i.end).length,
+      s:staleness(a)};
+  });
+  const maxN=Math.max(1,...per.map(p=>p.n));
+  let h='<div id="printHead"><h2>Portfolio by area</h2><div class="m">'+per.length+' areas · '+all.length+' ideas · '+new Date().toLocaleDateString()+'</div></div>';
+  h+='<div class="tw"><table><thead><tr><th>Area</th><th>Status mix</th><th class="n">Ideas</th><th class="n" title="Placed in a bucket rather than unplaced">Placed</th><th class="n">Scheduled</th><th class="n">Last change</th></tr></thead><tbody>';
+  per.forEach(p=>{
+    const segs=merged.filter(s=>p.counts.get(s.id)).map(s=>
+      '<i style="background:'+esc(s.color)+';width:'+((p.counts.get(s.id)/Math.max(1,p.n))*100).toFixed(2)+'%" title="'+esc(s.name+': '+p.counts.get(s.id))+'"></i>').join('');
+    h+='<tr data-area="'+esc(p.a.name)+'"><td><b>'+esc(p.a.name)+'</b><div class="k">'+esc(p.a.folder)+'/</div></td>'+
+      '<td><div class="bar-mini" style="width:'+Math.max(30,(p.n/maxN)*100).toFixed(0)+'%">'+segs+'</div></td>'+
+      '<td class="n">'+p.n+'</td><td class="n">'+p.placed+'</td><td class="n">'+p.scheduled+'</td>'+
+      '<td class="n"><span class="dot '+p.s.cls+'"></span> '+esc(p.s.txt)+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  if(missing.length) h+='<div class="tl" style="margin-top:14px"><div class="tl-group" style="position:static">Folders with no project<span class="ct">'+missing.length+'</span></div><div class="tl-none">'+missing.map(esc).join(', ')+'</div></div>';
+  c.innerHTML=h;
+  $$('#content tbody tr').forEach(tr=>tr.onclick=()=>{
+    ui.view='ideas';
+    ui.hidden=areas.map(a=>a.name).filter(n=>n!==tr.dataset.area);
+    savePrefs(); renderRail(); render();
+  });
+}
+
+function renderIdeas(c){
+  const list=rows(), k=ui.sort.k, d=ui.sort.d;
+  const val=r=>k==='area'?r.a.name:k==='status'?r.st.name:k==='title'?r.i.title:k==='owner'?(r.i.owner||'￿'):
+    k==='bucket'?bucketName(r.a,r.i.bucket):k==='start'?(r.i.start||'￿'):k==='end'?(r.i.end||'￿'):
+    k==='updated'?(r.i.updated||''):'';
+  list.sort((x,y)=>{ const a=val(x),b=val(y); return (a<b?-1:a>b?1:0)*d; });
+  let h='<div id="printHead"><h2>All ideas</h2><div class="m">'+list.length+' ideas · '+new Date().toLocaleDateString()+'</div></div>';
+  h+='<div class="tw"><table><thead><tr>'+
+    [['area','Area'],['title','Idea'],['status','Status'],['bucket','Bucket'],['owner','Owner'],['start','Start'],['end','Target'],['updated','Updated']]
+      .map(p=>'<th data-k="'+p[0]+'">'+p[1]+(k===p[0]?(d>0?' ▲':' ▼'):'')+'</th>').join('')+'</tr></thead><tbody>';
+  list.forEach(r=>{
+    h+='<tr data-open="'+esc(r.a.name)+'|'+esc(r.i.id)+'"><td class="k">'+esc(r.a.name)+'</td>'+
+      '<td>'+esc(r.i.title)+(r.i.archived?' <span class="pill">archived</span>':'')+'</td>'+
+      '<td><span class="badge"><span class="sw" style="background:'+esc(r.st.color)+'"></span>'+esc(r.st.name)+'</span></td>'+
+      '<td>'+esc(bucketName(r.a,r.i.bucket))+'</td><td>'+esc(r.i.owner||'')+'</td>'+
+      '<td class="n">'+esc(r.i.start||'')+'</td><td class="n">'+esc(r.i.end||'')+'</td>'+
+      '<td class="n">'+esc((r.i.updated||'').slice(0,10))+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  c.innerHTML=h;
+  $$('#content thead th').forEach(th=>th.onclick=()=>{
+    const kk=th.dataset.k;
+    if(ui.sort.k===kk) ui.sort.d*=-1; else ui.sort={k:kk,d:1};
+    savePrefs(); render();
+  });
+  wireOpen(c);
+}
+
+function wireOpen(c){
+  c.querySelectorAll('[data-open]').forEach(el=>el.onclick=e=>{
+    e.stopPropagation();
+    const p=el.dataset.open.split('|');
+    showIdea(p[0],p[1]);
+  });
+}
+
+/* ---------- read-only detail ---------- */
+function showIdea(areaName,id){
+  const a=areas.find(x=>x.name===areaName); if(!a) return;
+  const i=a.ideas.find(x=>x.id===id); if(!i) return;
+  const st=mergedStatus(a,i.status);
+  const score=(Number(i.reach)||0)*(Number(i.impact)||0)*((Number(i.confidence)||0)/100)/Math.max(1,Number(i.effort)||1);
+  $('#pKey').textContent=i.key||'';
+  $('#pArea').textContent=a.name;
+  $('#panelBody').innerHTML=
+    '<h2 class="p-title">'+esc(i.title)+'</h2>'+
+    '<dl class="kv">'+
+      '<div><dt>Status</dt><dd><span class="badge"><span class="sw" style="background:'+esc(st.color)+'"></span>'+esc(st.name)+'</span></dd></div>'+
+      '<div><dt>Bucket</dt><dd>'+esc(bucketName(a,i.bucket)||'—')+'</dd></div>'+
+      '<div><dt>Owner</dt><dd>'+esc(i.owner||'—')+'</dd></div>'+
+      '<div><dt>Score</dt><dd>'+(Math.round(score*10)/10)+'</dd></div>'+
+      '<div><dt>Impact / Effort</dt><dd>'+(i.impact||'—')+' / '+(i.effort||'—')+'</dd></div>'+
+      '<div><dt>Confidence</dt><dd>'+(i.confidence==null?'—':i.confidence+'%')+'</dd></div>'+
+      '<div><dt>Reach</dt><dd>'+(i.reach||0)+'</dd></div>'+
+      '<div><dt>Dates</dt><dd>'+fmtD(i.start)+' → '+fmtD(i.end)+'</dd></div>'+
+      (i.delivery?'<div><dt>ServiceNow</dt><dd>'+esc(i.delivery)+'</dd></div>':'')+
+    '</dl>'+
+    ((i.labels||[]).length?'<div><p class="sec-h">Labels</p><div>'+i.labels.map(l=>'<span class="pill">'+esc(l)+'</span> ').join('')+'</div></div>':'')+
+    (i.description?'<div><p class="sec-h">Description</p><div class="desc">'+esc(i.description)+'</div></div>':'')+
+    ((i.insights||[]).length?'<div><p class="sec-h">Insights</p>'+i.insights.map(x=>
+      '<div class="ins">'+esc(x.text)+'<div class="m">weight '+(x.weight||1)+(x.by?' · '+esc(x.by):'')+
+      (x.url?' · '+esc(String(x.url).replace(/^https?:\/\//,'')):'')+'</div></div>').join('')+'</div>':'')+
+    ((i.comments||[]).length?'<div><p class="sec-h">Comments</p>'+i.comments.map(x=>
+      '<div class="ins" style="border-left-color:var(--ink-3)">'+esc(x.text)+'<div class="m">'+
+      (x.by?esc(x.by)+' · ':'')+fmtTs(x.created)+'</div></div>').join('')+'</div>':'')+
+    '<div><p class="sec-h">History</p><div class="hist">'+[...(i.history||[])].reverse().slice(0,20).map(x=>
+      '<div><span class="ts">'+fmtTs(x.ts)+'</span>'+(x.by?'<span class="by">'+esc(x.by)+'</span> · ':'')+esc(x.text)+'</div>').join('')+'</div></div>'+
+    '<div class="src muted" style="font-size:11.5px">Read only. Edit this idea in '+esc(a.name)+'’s own copy of Discovery Desk.</div>';
+  $('#panel').hidden=false; $('#scrim').hidden=false;
+}
+function closePanel(){ $('#panel').hidden=true; $('#scrim').hidden=true; }
+
+/* ---------- export ---------- */
+const csvCell=v=>/[",\n\r]/.test(v)?'"'+String(v).replace(/"/g,'""')+'"':String(v);
+function exportCsv(){
+  const head=['Area','Key','Idea','Status','Bucket','Owner','Impact','Effort','Confidence','Reach','Start','Target','Updated','Labels'];
+  const lines=[head.map(csvCell).join(',')];
+  rows().forEach(r=>lines.push([r.a.name,r.i.key||'',r.i.title,r.st.name,bucketName(r.a,r.i.bucket),r.i.owner||'',
+    r.i.impact||'',r.i.effort||'',r.i.confidence==null?'':r.i.confidence,r.i.reach||0,r.i.start||'',r.i.end||'',
+    (r.i.updated||'').slice(0,10),(r.i.labels||[]).join('; ')].map(csvCell).join(',')));
+  const blob=new Blob(['﻿'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='portfolio-'+ui.view+'-'+new Date().toISOString().slice(0,10)+'.csv';
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+/* ---------- chrome ---------- */
+let toastT=null;
+function toast(m){
+  let el=$('.toast');
+  if(!el){ el=document.createElement('div'); el.className='toast'; document.body.appendChild(el); }
+  el.textContent=m; clearTimeout(toastT); toastT=setTimeout(()=>el.remove(),3200);
+}
+function applyTheme(v){
+  if(v==='auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme',v);
+  $$('#themeSeg button').forEach(b=>b.classList.toggle('on',b.dataset.t===v));
+  store.set('pd_theme',v);
+}
+async function pickRoot(){
+  try{
+    const h=await window.showDirectoryPicker({mode:'read'});
+    rootHandle=h; await idb.set('root',h);
+    await loadAll();
+  }catch(e){ if(e.name!=='AbortError'){ console.error(e); toast('Could not open that folder: '+e.message); } }
+}
+async function restore(){
+  const h=await idb.get('root'); if(!h) return;
+  try{
+    let p=await h.queryPermission({mode:'read'});
+    if(p!=='granted') p=await h.requestPermission({mode:'read'});
+    if(p==='granted'){ rootHandle=h; await loadAll(); }
+    else { $('#srcPath').textContent=h.name+'/'; $('#srcNote').textContent='Click Open folder to grant access again.'; }
+  }catch(e){}
+}
+
+function init(){
+  $('#fyStart').innerHTML=[1,2,3,4,5,6,7,8,9,10,11,12].map(m=>
+    '<option value="'+m+'">'+new Date(2000,m-1,1).toLocaleDateString(undefined,{month:'long'})+'</option>').join('');
+  $('#fyStart').value=String(ui.fyStart);
+  $('#fyName').value=ui.fyName;
+  $('#fyStart').onchange=e=>{ ui.fyStart=Number(e.target.value); savePrefs(); buildFyPicker(); render(); };
+  $('#fyName').onchange=e=>{ ui.fyName=e.target.value; savePrefs(); buildFyPicker(); render(); };
+  $('#fyPick').onchange=e=>{ ui.fy=e.target.value; savePrefs(); render(); };
+  $('#q').value=ui.q;
+  $('#q').oninput=e=>{ ui.q=e.target.value; savePrefs(); render(); };
+  $('#cbCommitted').checked=ui.committed;
+  $('#cbCommitted').onchange=e=>{ ui.committed=e.target.checked; savePrefs(); render(); };
+  $('#cbArchived').checked=ui.archived;
+  $('#cbArchived').onchange=e=>{ ui.archived=e.target.checked; savePrefs(); render(); };
+  $$('#tabs button').forEach(b=>b.onclick=()=>{ ui.view=b.dataset.v; savePrefs(); render(); });
+  $('#btnPick').onclick=pickRoot;
+  $('#btnRefresh').onclick=loadAll;
+  $('#btnAllAreas').onclick=()=>{ ui.hidden=[]; savePrefs(); renderRail(); render(); };
+  $('#btnNoAreas').onclick=()=>{ ui.hidden=areas.map(a=>a.name); savePrefs(); renderRail(); render(); };
+  $('#btnCsv').onclick=exportCsv;
+  $('#btnPdf').onclick=()=>window.print();
+  $('#pClose').onclick=closePanel;
+  $('#scrim').onclick=closePanel;
+  $$('#themeSeg button').forEach(b=>b.onclick=()=>applyTheme(b.dataset.t));
+  applyTheme(store.get('pd_theme')||'auto');
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ if(!$('#panel').hidden) closePanel(); }
+    else if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); $('#q').focus(); }
+  });
+  if(!window.showDirectoryPicker){
+    $('#btnPick').disabled=true;
+    $('#srcNote').textContent='This browser cannot read a folder. Open this page in Chrome or Edge.';
+  }
+  render();
+  restore();
+}
+init();
+</script>
+</body>
+</html>

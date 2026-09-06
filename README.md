@@ -2,6 +2,12 @@
 
 A single-file, no-server replacement for Jira Product Discovery. Open `index.html` in a browser and you have an ideas backlog with scoring, a status board, an impact-vs-effort matrix, a dated timeline roadmap, and insights attached to each idea.
 
+## Two apps
+
+- **`index.html`** is Discovery Desk, the tool one team uses to run its backlog and roadmap.
+- **`portfolio.html`** is Portfolio Desk, a read-only view across many teams' folders at once. See
+  the section at the end.
+
 ## Run it
 
 1. Open `index.html` in Chrome or Edge. Nothing to install, no build step.
@@ -248,3 +254,69 @@ Multi-user editing and Jira Software integration. The ServiceNow demand field is
 Extracted from the `apps/product-discovery` directory of `Blz989/claude-skills` so the tool has its
 own history and issues. That repository is a Claude plugin marketplace and this was the only
 application in it.
+
+## Portfolio Desk
+
+`portfolio.html` reads several areas' project folders at once and shows one roadmap across all of
+them. It is meant for a leader who wants to see what the whole organization is working on without
+opening each team's copy of the tool.
+
+**It never writes.** Not to any area's folder, not ever. Read access to the folders is all it needs.
+
+### Using it
+
+Open `portfolio.html` in Chrome or Edge and click **Open folder**, then pick the *parent* folder that
+contains each area's project folder:
+
+```
+Tech/                        <- pick this one
+  Finance Tech/
+    project.json
+    ideas/...
+  Operations/
+    project.json
+    ideas/...
+  Data/
+    project.json
+    ideas/...
+```
+
+One permission prompt covers everything below it. Any subfolder holding a `project.json` is treated
+as an area; anything else is listed as having no project, so a team that has not adopted the tool
+shows as missing rather than silently vanishing. New areas appear on their own the next time you
+click **Refresh**.
+
+### What it shows
+
+| View | What you get |
+| --- | --- |
+| Roadmap | One fiscal year across every area, grouped by area, coloured by status. Bars crossing the window edge are clipped and marked. Ideas scheduled elsewhere or not scheduled at all are listed underneath |
+| Areas | One row per area: idea count, how many are placed on a horizon, how many are scheduled, the status mix as a bar, and how long since anything changed |
+| Ideas | Every idea across every area in one sortable table |
+
+Click anything to open a read-only detail panel with the scores, description, insights, comments and
+history from that area's own file.
+
+### Statuses commingle
+
+There is no mapping table to maintain. Statuses are matched on id first, so every project seeded
+from the built-in defaults lines up even after a team renames a label, and then on name, which
+catches two areas independently adding the same status. A status that is **not** one of the six
+defaults and is used by only one area is marked `off-standard` in the filter bar, so taxonomy drift
+is visible rather than quietly fragmenting the chart.
+
+### Things it deliberately does not do
+
+- **No cross-area score.** RICE built on different Reach units is not comparable between teams, so
+  score appears only in an idea's own panel, never summed across areas.
+- **No shared fiscal calendar assumption.** The portfolio sets its own fiscal year in the rail and
+  applies it to everyone, rather than inheriting whichever calendar an area happened to pick.
+- **"Placed" is not "committed".** The filter counts ideas that sit in any bucket rather than being
+  unplaced, which includes Later. It is named for what it measures.
+
+### Keeping the taxonomy consistent
+
+The cleanest way to keep areas aligned is not a written standard but a seed file: configure one
+project with the agreed statuses, buckets, custom fields and fiscal settings, **Export JSON**, and
+have each area import that as their starting point. The ids then match by construction.
+
