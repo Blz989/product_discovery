@@ -92,6 +92,8 @@ input[type=search]{width:200px}
 .chip .sw{width:8px;height:8px;border-radius:50%}
 .chip .solo{font-family:var(--mono);font-size:10px;color:var(--warn);border:1px solid var(--warn);border-radius:3px;padding:0 3px;line-height:1.35}
 .content{flex:1;overflow:auto;padding:18px}
+#btnMenu{display:none}
+.rail-scrim{position:fixed;inset:0;background:rgba(10,14,20,.45);z-index:24}
 
 .empty{display:grid;place-items:center;height:100%;text-align:center;color:var(--ink-3);padding:40px}
 .empty b{display:block;font-size:16px;color:var(--ink);margin-bottom:8px}
@@ -179,9 +181,21 @@ td.k{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowra
 }
 @media (max-width:900px){
   .app{grid-template-columns:1fr}
-  .rail{position:fixed;inset:0 auto 0 0;width:270px;z-index:50;transform:translateX(-100%);transition:transform .18s}
+  /* The rail carries the folder picker, the area list and the fiscal settings, so it becomes a
+     drawer rather than disappearing. Without the button below there is no way back to it. */
+  .rail{position:fixed;inset:0 auto 0 0;width:min(272px,78vw);z-index:25;transform:translateX(-100%);transition:transform .18s;box-shadow:var(--shadow)}
   .rail.open{transform:none}
+  #btnMenu{display:inline-flex;order:-2}
+  h1{order:-1}
+  .toolbar{gap:8px;padding:10px 12px}
+  .tabs{order:-1;flex:1 1 100%}
+  .tabs button{flex:1}
+  input[type=search]{flex:1 1 auto;width:auto;min-width:130px}
+  .chips{padding:8px 12px}
+  .content{padding:12px}
   :root{--tl-side:150px}
+  .tl-side .d{font-size:10px}
+  .panel{width:100%}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -233,6 +247,7 @@ td.k{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowra
 
   <div class="main">
     <div class="toolbar">
+      <button class="btn sm" id="btnMenu" aria-label="Menu" aria-expanded="false"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M2 4h12M2 8h12M2 12h12"/></svg></button>
       <h1 id="viewTitle">Roadmap</h1>
       <div class="tabs" id="tabs">
         <button data-v="roadmap" class="on">Roadmap</button>
@@ -252,6 +267,7 @@ td.k{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowra
   </div>
 </div>
 
+<div class="rail-scrim" id="railScrim" hidden></div>
 <div class="scrim" id="scrim" hidden></div>
 <aside class="panel" id="panel" hidden aria-label="Idea detail">
   <div class="panel-h"><span class="key" id="pKey"></span><span class="pill" id="pArea"></span><span class="spacer"></span><button class="btn sm ghost" id="pClose">&#10005;</button></div>
@@ -684,6 +700,14 @@ function exportCsv(){
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 
+/* ---------- the rail is a drawer on a narrow screen ---------- */
+const isNarrow=()=>window.matchMedia('(max-width:900px)').matches;
+const railOpen=()=>$('#rail').classList.contains('open');
+function openRail(){ $('#rail').classList.add('open'); $('#railScrim').hidden=false; $('#btnMenu').setAttribute('aria-expanded','true'); }
+function closeRail(){ $('#rail').classList.remove('open'); $('#railScrim').hidden=true; $('#btnMenu').setAttribute('aria-expanded','false'); }
+/* Picking something in the drawer should reveal the result, not leave the drawer over it. */
+const afterRailPick=()=>{ if(isNarrow()) closeRail(); };
+
 /* ---------- chrome ---------- */
 let toastT=null;
 function toast(m){
@@ -728,11 +752,14 @@ function init(){
   $('#cbCommitted').onchange=e=>{ ui.committed=e.target.checked; savePrefs(); render(); };
   $('#cbArchived').checked=ui.archived;
   $('#cbArchived').onchange=e=>{ ui.archived=e.target.checked; savePrefs(); render(); };
-  $$('#tabs button').forEach(b=>b.onclick=()=>{ ui.view=b.dataset.v; savePrefs(); render(); });
-  $('#btnPick').onclick=pickRoot;
-  $('#btnRefresh').onclick=loadAll;
-  $('#btnAllAreas').onclick=()=>{ ui.hidden=[]; savePrefs(); renderRail(); render(); };
+  $$('#tabs button').forEach(b=>b.onclick=()=>{ ui.view=b.dataset.v; savePrefs(); render(); afterRailPick(); });
+  $('#btnPick').onclick=()=>{ closeRail(); pickRoot(); };
+  $('#btnRefresh').onclick=()=>{ afterRailPick(); loadAll(); };
+  $('#btnAllAreas').onclick=()=>{ ui.hidden=[]; savePrefs(); renderRail(); render(); afterRailPick(); };
   $('#btnNoAreas').onclick=()=>{ ui.hidden=areas.map(a=>a.name); savePrefs(); renderRail(); render(); };
+  $('#btnMenu').onclick=()=>railOpen()?closeRail():openRail();
+  $('#railScrim').onclick=closeRail;
+  window.addEventListener('resize',()=>{ if(!isNarrow()) closeRail(); });
   $('#btnCsv').onclick=exportCsv;
   $('#btnPdf').onclick=()=>window.print();
   $('#pClose').onclick=closePanel;
@@ -740,7 +767,7 @@ function init(){
   $$('#themeSeg button').forEach(b=>b.onclick=()=>applyTheme(b.dataset.t));
   applyTheme(store.get('pd_theme')||'auto');
   document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){ if(!$('#panel').hidden) closePanel(); }
+    if(e.key==='Escape'){ if(!$('#panel').hidden) closePanel(); else if(railOpen()) closeRail(); }
     else if(e.key==='/'&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){ e.preventDefault(); $('#q').focus(); }
   });
   if(!window.showDirectoryPicker){

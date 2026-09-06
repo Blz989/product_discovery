@@ -305,6 +305,13 @@ catches two areas independently adding the same status. A status that is **not**
 defaults and is used by only one area is marked `off-standard` in the filter bar, so taxonomy drift
 is visible rather than quietly fragmenting the chart.
 
+### On a phone
+
+Below 900px the rail becomes a drawer. Tap the menu button at the top left to reach the folder
+picker, the area list, the fiscal year settings and the theme toggle. Tapping beside the drawer,
+pressing Escape, or picking a view closes it again. The toolbar reflows so the view tabs get their
+own row, and the roadmap scrolls sideways inside its own container rather than pushing the page.
+
 ### Things it deliberately does not do
 
 - **No cross-area score.** RICE built on different Reach units is not comparable between teams, so
